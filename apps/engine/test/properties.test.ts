@@ -230,7 +230,7 @@ class Harness {
         this.release(this.orders.get(e.orderId)!);
         break;
       case 'REJECTED':
-        if (e.isNew) this.release(this.orders.get(e.orderId)!);
+        if (e.cmd === 'NEW') this.release(this.orders.get(e.orderId)!);
         break;
       case 'AMENDED': {
         const o = this.orders.get(e.orderId)!;

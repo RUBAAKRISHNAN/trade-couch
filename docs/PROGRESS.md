@@ -3,6 +3,7 @@
 ## Phase 1 + 2 — Monorepo, database, matching engine ✅
 
 **Built**
+
 - npm-workspaces monorepo (`apps/{api,engine,worker,web}`, `packages/shared`), TypeScript strict, ESLint 9 flat config, Prettier, Vitest projects.
 - Databases `tradecore` and `tradecore_test` created; migration `0001_init.sql`: 20 tables, CHECK constraints
   (`cash >= 0`, `held <= cash`, `qty >= 0`, `tick % qty_scale = 0`, …), FKs, `UNIQUE NULLS NOT DISTINCT`,

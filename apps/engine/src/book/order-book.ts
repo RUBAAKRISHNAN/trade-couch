@@ -119,14 +119,14 @@ export class OrderBook {
   private reject(
     cmd: { orderId: number; accountId: number; ts: number },
     reason: RejectReason,
-    isNew: boolean,
+    kind: 'NEW' | 'CANCEL' | 'AMEND',
   ) {
     this.emit({
       type: 'REJECTED',
       orderId: cmd.orderId,
       accountId: cmd.accountId,
       reason,
-      isNew,
+      cmd: kind,
       ts: cmd.ts,
     });
   }
@@ -148,21 +148,21 @@ export class OrderBook {
 
   private onNew(cmd: NewOrderCommand): void {
     if (this.seen.has(cmd.orderId)) return; // duplicate delivery: already handled, emit nothing
-    if (this.halted) return this.reject(cmd, 'HALTED', true);
+    if (this.halted) return this.reject(cmd, 'HALTED', 'NEW');
     const isStop = cmd.type === 'STOP_MARKET' || cmd.type === 'STOP_LIMIT';
     const needsPrice = cmd.type === 'LIMIT' || cmd.type === 'STOP_LIMIT';
     const isMarket = cmd.type === 'MARKET' || cmd.type === 'STOP_MARKET';
-    if (!this.validQty(cmd.qty)) return this.reject(cmd, 'BAD_QTY', true);
+    if (!this.validQty(cmd.qty)) return this.reject(cmd, 'BAD_QTY', 'NEW');
     if (
       (needsPrice && cmd.price === undefined) ||
       (!needsPrice && cmd.price !== undefined) ||
       (isStop && cmd.stopPrice === undefined) ||
       (isMarket && cmd.tif === 'GTC')
     )
-      return this.reject(cmd, 'BAD_PARAMS', true);
+      return this.reject(cmd, 'BAD_PARAMS', 'NEW');
     if (!this.validPrice(cmd.price) || !this.validPrice(cmd.stopPrice) || !this.validPrice(cmd.protectPrice))
-      return this.reject(cmd, 'BAD_TICK', true);
-    if (cmd.price !== undefined && this.outsideBand(cmd.price)) return this.reject(cmd, 'PRICE_BAND', true);
+      return this.reject(cmd, 'BAD_TICK', 'NEW');
+    if (cmd.price !== undefined && this.outsideBand(cmd.price)) return this.reject(cmd, 'PRICE_BAND', 'NEW');
 
     this.emit({
       type: 'ACCEPTED',
@@ -337,8 +337,8 @@ export class OrderBook {
   private onCancel(cmd: CancelCommand): void {
     const o = this.orders.get(cmd.orderId);
     const s = this.stopIndex.get(cmd.orderId);
-    if (!o && !s) return this.reject(cmd, 'UNKNOWN_ORDER', false);
-    if ((o ?? s)!.accountId !== cmd.accountId) return this.reject(cmd, 'NOT_OWNER', false);
+    if (!o && !s) return this.reject(cmd, 'UNKNOWN_ORDER', 'CANCEL');
+    if ((o ?? s)!.accountId !== cmd.accountId) return this.reject(cmd, 'NOT_OWNER', 'CANCEL');
     const remainingQty = o ? o.qty : s!.qty;
     if (o) this.unrest(o);
     else this.removeStop(s!);
@@ -358,15 +358,15 @@ export class OrderBook {
    * and a new price may even cross the spread and trade immediately.
    */
   private onAmend(cmd: AmendCommand): void {
-    if (this.halted) return this.reject(cmd, 'HALTED', false);
+    if (this.halted) return this.reject(cmd, 'HALTED', 'AMEND');
     const o = this.orders.get(cmd.orderId);
-    if (!o) return this.reject(cmd, 'UNKNOWN_ORDER', false);
-    if (o.accountId !== cmd.accountId) return this.reject(cmd, 'NOT_OWNER', false);
+    if (!o) return this.reject(cmd, 'UNKNOWN_ORDER', 'AMEND');
+    if (o.accountId !== cmd.accountId) return this.reject(cmd, 'NOT_OWNER', 'AMEND');
     const newQty = cmd.newQty ?? o.qty;
     const newPrice = cmd.newPrice ?? o.price;
-    if (!this.validQty(newQty)) return this.reject(cmd, 'BAD_QTY', false);
-    if (!this.validPrice(newPrice)) return this.reject(cmd, 'BAD_TICK', false);
-    if (newPrice !== o.price && this.outsideBand(newPrice)) return this.reject(cmd, 'PRICE_BAND', false);
+    if (!this.validQty(newQty)) return this.reject(cmd, 'BAD_QTY', 'AMEND');
+    if (!this.validPrice(newPrice)) return this.reject(cmd, 'BAD_TICK', 'AMEND');
+    if (newPrice !== o.price && this.outsideBand(newPrice)) return this.reject(cmd, 'PRICE_BAND', 'AMEND');
 
     if (newPrice === o.price && newQty <= o.qty) {
       o.level!.totalQty -= o.qty - newQty;
@@ -499,7 +499,7 @@ export class OrderBook {
         break;
       }
       case 'REJECTED':
-        if (e.isNew) this.seen.add(e.orderId);
+        if (e.cmd === 'NEW') this.seen.add(e.orderId);
         break;
       case 'STOP_TRIGGERED': {
         const s = this.stopIndex.get(e.orderId);

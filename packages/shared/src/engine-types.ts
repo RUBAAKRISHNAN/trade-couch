@@ -88,8 +88,8 @@ export interface RejectedEvent extends EventBase {
   orderId: number;
   accountId: number;
   reason: RejectReason;
-  /** true when the reject concerns a NEW order (its reservation must be released). */
-  isNew: boolean;
+  /** which command was rejected; NEW rejects release the order's whole reservation */
+  cmd: 'NEW' | 'CANCEL' | 'AMEND';
 }
 export interface TradeEvent extends EventBase {
   type: 'TRADE';
