@@ -119,7 +119,7 @@ export async function attachRealtime(httpServer: HttpServer, pool: Pool, redis: 
 
   const flushTimer = setInterval(() => {
     for (const [sym, arr] of tradeBuf)
-      if (arr.length) io.local.to(`trades:${sym}`).emit('trades', arr.splice(0));
+      if (arr.length) io.local.to(`trades:${sym}`).emit('trades', { symbol: sym, trades: arr.splice(0) });
     for (const sym of pendingTicker.keys())
       if (Date.now() - (lastTicker.get(sym) ?? 0) >= 250) flushTicker(sym);
   }, 100);

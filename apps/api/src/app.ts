@@ -91,12 +91,10 @@ export async function buildApp(deps: AppDeps, opts: { logger?: boolean | object;
       });
     const status = (err as { statusCode?: number }).statusCode;
     if (status === 429)
-      return reply
-        .status(429)
-        .send({
-          error: { code: 'RATE_LIMITED', message: 'Too many requests, slow down' },
-          requestId: req.id,
-        });
+      return reply.status(429).send({
+        error: { code: 'RATE_LIMITED', message: 'Too many requests, slow down' },
+        requestId: req.id,
+      });
     if (status && status < 500)
       return reply
         .status(status)

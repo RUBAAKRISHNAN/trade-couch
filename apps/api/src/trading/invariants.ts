@@ -4,6 +4,9 @@ import type { Pool } from '@tradecore/shared/node';
  * Ledger invariants, checked with SQL against the live database. Each check returns offending rows;
  * an empty result means the invariant holds. Used by `npm run check:invariants` and the integration tests.
  */
+// TODO(me) [Phase 3 task, ~20 min]: add an invariant "no-stuck-pending-orders": orders still PENDING more than
+//   60 seconds after created_at (the engine never answered). Then make the tamper test in
+//   apps/api/test/settlement.test.ts prove it fires (UPDATE an order back to PENDING with an old created_at).
 export const INVARIANTS: { name: string; explain: string; sql: string }[] = [
   {
     name: 'no-negative-balances',

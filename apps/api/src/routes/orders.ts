@@ -3,11 +3,12 @@ import { z } from 'zod';
 import { amendOrderSchema, placeOrderSchema } from '@tradecore/shared';
 import { requireAuth } from '../app';
 import { resolveAccount, userAccountIds } from '../lib/accounts';
+import { getInstrumentRow } from '../trading/instruments';
 import { placeOrder, requestAmend, requestCancel, type OrderRow } from '../trading/orders';
 
 const ordersLimit = { rateLimit: { max: 30, timeWindow: '10 seconds' } };
 
-export function orderView(o: OrderRow) {
+export function orderView(o: OrderRow & { qty_scale?: number }, qtyScale = o.qty_scale ?? 1) {
   return {
     id: o.id,
     accountId: o.account_id,
@@ -21,7 +22,8 @@ export function orderView(o: OrderRow) {
     price: o.price_paise,
     stopPrice: o.stop_price_paise,
     protectPrice: o.protect_price_paise,
-    avgFillPrice: o.filled_units ? Math.round(o.filled_notional_paise / o.filled_units) : null,
+    // filled_notional is in paise for units; scale back up to a price per whole coin/share
+    avgFillPrice: o.filled_units ? Math.round((o.filled_notional_paise * qtyScale) / o.filled_units) : null,
     filledNotional: o.filled_notional_paise,
     held: o.held_cash_paise,
     heldUnits: o.held_units,
@@ -45,7 +47,7 @@ export const orderRoutes: FastifyPluginAsyncZod = async (app) => {
       const accountId = await resolveAccount(pool, req.user!.id, req.body.competitionId);
       const o = await placeOrder(pool, bus, accountId, req.body);
       reply.status(202); // accepted for matching; the outcome arrives via websocket / GET
-      return orderView(o);
+      return orderView(o, (await getInstrumentRow(pool, o.symbol)).qty_scale);
     },
   );
 
@@ -66,12 +68,12 @@ export const orderRoutes: FastifyPluginAsyncZod = async (app) => {
     async (req) => {
       const accountId = await resolveAccount(pool, req.user!.id, req.query.competitionId);
       const r = await pool.query<OrderRow>(
-        `SELECT * FROM orders WHERE account_id = $1 AND ($2::text IS NULL OR symbol = $2)
-           AND ($3 = 'all' OR status IN ('PENDING','OPEN','PARTIALLY_FILLED'))
-         ORDER BY created_at DESC LIMIT $4`,
+        `SELECT o.*, i.qty_scale FROM orders o JOIN instruments i USING (symbol) WHERE o.account_id = $1 AND ($2::text IS NULL OR o.symbol = $2)
+           AND ($3 = 'all' OR o.status IN ('PENDING','OPEN','PARTIALLY_FILLED'))
+         ORDER BY o.created_at DESC LIMIT $4`,
         [accountId, req.query.symbol ?? null, req.query.status, req.query.limit],
       );
-      return r.rows.map(orderView);
+      return r.rows.map((o) => orderView(o));
     },
   );
 

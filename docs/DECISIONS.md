@@ -67,3 +67,17 @@ The settler applies event `seq = N` for a symbol only if `engine_offsets.last_se
 offset **in the same transaction** as the balance changes. A redelivered event is detected and skipped;
 a gap stops the settler loudly. This beats a unique constraint alone because partitioned unique keys must
 include the partition column.
+
+## D11 — Second live feed: Binance (Kraken blocked on the dev network)
+
+Kraken's WebSocket and REST endpoints are unreachable from the development network (non-101 / no connection),
+so `BinanceFeed` (public `data-stream.binance.vision`, USDT pairs, 1 USDT ≈ 1 USD) is the second live source.
+The Kraken adapter stays (it works on other networks). Failover order: coinbase → binance → kraken → simulated.
+
+## D12 — Known dependency advisories (reviewed Oct 2026)
+
+- `@fastify/static` (via Swagger UI): **fixed** by upgrading `@fastify/swagger-ui` to 6.1.2.
+- `zod` 3.x memory exhaustion on oversized constrained collections (GHSA-mrhx-c7xc-m3w5): exposure is limited
+  (Fastify's 1 MB body limit; no unbounded arrays in our schemas). Fix = Zod 4 + fastify-type-provider-zod 7;
+  planned as a dedicated upgrade.
+- `prisma` 6 CLI → `deepmerge-ts`: build-time code generation only, not reachable at runtime. Upgrade with Prisma 7.

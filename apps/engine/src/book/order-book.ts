@@ -153,6 +153,9 @@ export class OrderBook {
     const needsPrice = cmd.type === 'LIMIT' || cmd.type === 'STOP_LIMIT';
     const isMarket = cmd.type === 'MARKET' || cmd.type === 'STOP_MARKET';
     if (!this.validQty(cmd.qty)) return this.reject(cmd, 'BAD_QTY', 'NEW');
+    // TODO(me) [Phase 2 task, ~30 min]: add an optional `maxOrderQty` to BookConfig and reject NEW orders above it
+    //   with a new RejectReason 'MAX_QTY' (add it in packages/shared/src/engine-types.ts). Write a unit test in
+    //   test/order-book.test.ts. Question to answer in the test name: why is this a "fat-finger" protection?
     if (
       (needsPrice && cmd.price === undefined) ||
       (!needsPrice && cmd.price !== undefined) ||

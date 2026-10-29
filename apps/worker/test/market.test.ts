@@ -106,3 +106,8 @@ describe('simulated feed', () => {
     }
   });
 });
+
+// TODO(me) [Phase 4 task, ~30 min]: add 'feed parsers' tests. Subclass CoinbaseFeed / BinanceFeed / KrakenFeed to
+//   expose the protected parse() and feed it real-looking messages (copy shapes from each exchange's docs), e.g.
+//   { type: 'ticker', product_id: 'BTC-USD', price: '81112.15' }. Also test that heartbeats/subscription acks
+//   return [] so they never become prices.
