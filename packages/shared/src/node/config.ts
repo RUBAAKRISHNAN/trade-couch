@@ -37,7 +37,7 @@ export const config = {
     return Number(process.env.USD_INR ?? DEFAULT_USD_INR);
   },
   get marketFeeds() {
-    return (process.env.MARKET_FEEDS ?? 'coinbase,kraken,simulated').split(',').map((s) => s.trim());
+    return (process.env.MARKET_FEEDS ?? 'coinbase,binance,kraken,simulated').split(',').map((s) => s.trim());
   },
   get aiProvider() {
     return process.env.AI_PROVIDER ?? '';

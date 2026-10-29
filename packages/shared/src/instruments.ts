@@ -13,7 +13,13 @@ export interface InstrumentSpec {
   /** Reject limit orders further than this from the reference price (basis points; 500 = 5%). */
   priceBandBps: number;
   /** For live feeds: product ids per provider. For simulated: GBM seed parameters. */
-  feed: { coinbase?: string; kraken?: string; simStartPaise?: number; simVolatility?: number };
+  feed: {
+    coinbase?: string;
+    binance?: string;
+    kraken?: string;
+    simStartPaise?: number;
+    simVolatility?: number;
+  };
   enabled: boolean;
 }
 
@@ -26,7 +32,13 @@ export const INSTRUMENTS: InstrumentSpec[] = [
     lotSizeUnits: 1,
     qtyScale: 10_000, // 1 unit = 0.0001 BTC
     priceBandBps: 500,
-    feed: { coinbase: 'BTC-USD', kraken: 'XBT/USD', simStartPaise: 95_00_000_00, simVolatility: 0.6 },
+    feed: {
+      coinbase: 'BTC-USD',
+      binance: 'btcusdt',
+      kraken: 'BTC/USD',
+      simStartPaise: 71_50_000_00,
+      simVolatility: 0.6,
+    },
     enabled: true,
   },
   {
@@ -37,7 +49,13 @@ export const INSTRUMENTS: InstrumentSpec[] = [
     lotSizeUnits: 1,
     qtyScale: 1_000, // 0.001 ETH
     priceBandBps: 500,
-    feed: { coinbase: 'ETH-USD', kraken: 'ETH/USD', simStartPaise: 3_50_000_00, simVolatility: 0.75 },
+    feed: {
+      coinbase: 'ETH-USD',
+      binance: 'ethusdt',
+      kraken: 'ETH/USD',
+      simStartPaise: 3_50_000_00,
+      simVolatility: 0.75,
+    },
     enabled: false,
   },
   {
@@ -48,7 +66,13 @@ export const INSTRUMENTS: InstrumentSpec[] = [
     lotSizeUnits: 1,
     qtyScale: 100, // 0.01 SOL
     priceBandBps: 500,
-    feed: { coinbase: 'SOL-USD', kraken: 'SOL/USD', simStartPaise: 17_500_00, simVolatility: 0.9 },
+    feed: {
+      coinbase: 'SOL-USD',
+      binance: 'solusdt',
+      kraken: 'SOL/USD',
+      simStartPaise: 17_500_00,
+      simVolatility: 0.9,
+    },
     enabled: false,
   },
   {

@@ -27,11 +27,13 @@
     "load:test": "tsx --env-file-if-exists=.env scripts/load-test.ts",
     "check:invariants": "tsx --env-file-if-exists=.env scripts/check-invariants.ts",
     "e2e": "playwright test",
-    "clean": "rimraf \"**/dist\" \"**/.vite\""
+    "clean": "rimraf \"**/dist\" \"**/.vite\"",
+    "smoke": "tsx --env-file-if-exists=.env scripts/smoke.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
     "@types/node": "^22.20.5",
+    "bcryptjs": "^3.0.3",
     "concurrently": "^10.0.6",
     "cross-env": "^10.1.0",
     "eslint": "^9.39.5",

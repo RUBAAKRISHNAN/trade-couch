@@ -99,6 +99,7 @@ model Bot {
   levelStepBps      Int      @default(5) @map("level_step_bps")
   sizeUnits         BigInt   @map("size_units")
   maxInventoryUnits BigInt   @map("max_inventory_units")
+  kind              String   @default("MAKER")
   enabled           Boolean  @default(true)
   updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 

@@ -13,6 +13,8 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@tradecore/shared": "*"
+    "@tradecore/shared": "*",
+    "ioredis": "^5.11.1",
+    "pino": "^9.14.0"
   }
 }
