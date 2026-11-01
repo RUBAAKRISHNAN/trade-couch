@@ -10,9 +10,10 @@ import { LoginPage, RegisterPage } from '@/features/auth/AuthPages';
 import { TradePage } from '@/features/trade/TradePage';
 
 const PortfolioPage = lazy(() => import('@/features/portfolio/PortfolioPage'));
-const ComingSoon = lazy(() => import('@/features/ComingSoon'));
 const CoachPage = lazy(() => import('@/features/coach/CoachPage'));
 const CompetePage = lazy(() => import('@/features/compete/CompetePage'));
+const LearnPage = lazy(() => import('@/features/learn/LearnPage'));
+const AdminPage = lazy(() => import('@/features/admin/AdminPage'));
 
 function Protected({ children }: { children: ReactNode }) {
   const { user, ready } = useAuth();
@@ -58,8 +59,8 @@ export function App({ queryClient }: { queryClient: QueryClient }) {
           <Route path="/portfolio" element={<PortfolioPage />} />
           <Route path="/coach" element={<CoachPage />} />
           <Route path="/compete" element={<CompetePage />} />
-          <Route path="/learn" element={<ComingSoon title="Learn" />} />
-          <Route path="/admin" element={<ComingSoon title="Admin" />} />
+          <Route path="/learn" element={<LearnPage />} />
+          <Route path="/admin" element={<AdminPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/trade" replace />} />
       </Routes>

@@ -143,8 +143,9 @@ export const COACH_FLAGS: Record<CoachFlag, FlagInfo> = {
   SMALL_SIZE: {
     good: true,
     points: 10,
-    label: 'Small position',
-    explain: 'You risked 5% of your money or less on this trade.',
+    label: 'Small risk',
+    explain:
+      'At most 1% of your money was at risk down to your stop (or, with no planned stop, at most 5% of your money was in the trade).',
     tip: 'Small positions let you survive a losing streak. Keep it up.',
   },
   GOOD_RR: {
@@ -172,18 +173,20 @@ export const COACH_FLAGS: Record<CoachFlag, FlagInfo> = {
   OVERSIZED: {
     good: false,
     points: -10,
-    label: 'Large position',
-    explain: 'More than 10% of your money was in this one trade.',
-    tip: 'Try risking 5% or less per trade so one loss cannot hurt you much.',
-    goal: 'Keep every trade at 5% of your money or less.',
+    label: 'Large risk',
+    explain:
+      'More than 2% of your money was at risk down to your stop (or, with no planned stop, more than 10% of your money was in the trade).',
+    tip: 'Size so that hitting your stop costs about 1% of your money. Then one loss can’t hurt much.',
+    goal: 'Size every trade so hitting the stop costs about 1% of your money.',
   },
   ALL_IN: {
     good: false,
     points: -25,
-    label: 'Very large position',
-    explain: 'More than a quarter of your money was in this one trade.',
+    label: 'Very large risk',
+    explain:
+      'More than 5% of your money was at risk down to your stop (or, with no planned stop, more than a quarter of your money was in the trade).',
     tip: 'A few trades this size going wrong can wipe out weeks of progress. Size down.',
-    goal: 'Never put more than 10% of your money in one trade.',
+    goal: 'Never risk more than 2% of your money on one trade.',
   },
   POOR_RR: {
     good: false,
@@ -267,7 +270,10 @@ export interface TripGrade {
   flags: CoachFlag[];
   tip: string;
   details: {
+    /** position value as % of equity */
     sizePct: number;
+    /** % of equity lost if the planned stop is hit (null without a planned stop) */
+    riskPct: number | null;
     plannedRR: number | null;
     holdMinutes: number;
     moveBeforeEntryPct: number | null;
@@ -289,12 +295,18 @@ export function gradeTrip(f: TripFacts): TripGrade {
   const holdMinutes = Math.max(0, (f.closedAt.getTime() - f.openedAt.getTime()) / 60_000);
   const sizePct = f.equityAtOpen > 0 ? (f.entryNotional / f.equityAtOpen) * 100 : 100;
 
-  // risk control
+  // risk control. With a planned stop, size is judged by what hitting the stop would cost (the textbook
+  // "risk 1% per trade": a 50% position with a 2% stop only risks 1%). Without one, the whole position
+  // is at risk, so its value is what counts.
   const hasStop = f.hadStopOrder || !!f.planStop;
   flags.push(hasStop ? 'STOP_USED' : 'NO_STOP');
-  if (sizePct <= 5) flags.push('SMALL_SIZE');
-  else if (sizePct > 25) flags.push('ALL_IN');
-  else if (sizePct > 10) flags.push('OVERSIZED');
+  const riskPct =
+    f.planStop && f.entryPrice > f.planStop ? (sizePct * (f.entryPrice - f.planStop)) / f.entryPrice : null;
+  const [small, large, huge] = riskPct === null ? [5, 10, 25] : [1, 2, 5];
+  const basis = riskPct ?? sizePct;
+  if (basis <= small) flags.push('SMALL_SIZE');
+  else if (basis > huge) flags.push('ALL_IN');
+  else if (basis > large) flags.push('OVERSIZED');
 
   // the plan
   let plannedRR: number | null = null;
@@ -347,6 +359,7 @@ export function gradeTrip(f: TripFacts): TripGrade {
     tip,
     details: {
       sizePct: Math.round(sizePct * 100) / 100,
+      riskPct: riskPct === null ? null : Math.round(riskPct * 100) / 100,
       plannedRR: plannedRR === null ? null : Math.round(plannedRR * 100) / 100,
       holdMinutes: Math.round(holdMinutes * 10) / 10,
       moveBeforeEntryPct: move === null ? null : Math.round(move * 100) / 100,

@@ -157,6 +157,7 @@ export interface CoachTrip {
   tip: string;
   details: {
     sizePct: number;
+    riskPct?: number | null;
     plannedRR: number | null;
     holdMinutes: number;
     moveBeforeEntryPct: number | null;

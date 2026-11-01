@@ -183,6 +183,14 @@ function TripCard({ t }: { t: CoachTrip }) {
               <dl className="grid grid-cols-2 gap-x-4 gap-y-2 p-3 text-xs sm:grid-cols-4">
                 <Detail label="Process score" value={`${t.score} / 100`} />
                 <Detail label="Position size" value={`${t.details.sizePct.toFixed(1)}% of your money`} />
+                <Detail
+                  label="At risk to your stop"
+                  value={
+                    t.details.riskPct == null
+                      ? 'no planned stop'
+                      : `${t.details.riskPct.toFixed(2)}% of your money`
+                  }
+                />
                 <Detail label="Held for" value={holdLabel(t.details.holdMinutes)} />
                 <Detail
                   label="Move before entry"

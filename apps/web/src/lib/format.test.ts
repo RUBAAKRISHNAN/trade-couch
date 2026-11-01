@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { inr, parsePrice, parseQty, pct, qty, signedInr } from './format';
+import { inr, parsePrice, parseQty, pct, qty, signedInr, baseAsset } from './format';
 
 describe('format helpers (money is paise, quantity is units)', () => {
   it('formats rupees with Indian digit grouping', () => {
@@ -21,5 +21,14 @@ describe('format helpers (money is paise, quantity is units)', () => {
   it('signs percentages', () => {
     expect(pct(1.234)).toBe('+1.23%');
     expect(pct(-0.5)).toBe('−0.50%');
+  });
+
+  it('baseAsset names the asset, including simulated instruments', () => {
+    expect(baseAsset('BTC-INR')).toBe('BTC');
+    expect(baseAsset('SIM-RELIANCE')).toBe('RELIANCE');
+  });
+  it('pct shows no sign for values that round to zero', () => {
+    expect(pct(-0.0004)).toBe('0.00%');
+    expect(pct(-0.006)).toBe('−0.01%');
   });
 });

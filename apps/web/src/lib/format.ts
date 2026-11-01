@@ -35,7 +35,10 @@ export function signedInr(paise: number): string {
 
 export function pct(v: number | null | undefined, digits = 2): string {
   if (v === null || v === undefined || !Number.isFinite(v)) return '—';
-  return `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(digits)}%`;
+  const shown = Math.abs(v).toFixed(digits);
+  // a value that rounds to zero gets no sign (no "−0.00%")
+  const sign = Number(shown) === 0 ? '' : v > 0 ? '+' : '−';
+  return `${sign}${shown}%`;
 }
 
 /** decimals to show for a quantity, from the instrument's qtyScale (10_000 → 4) */
@@ -73,6 +76,8 @@ export function timeHMS(ts: number | string | Date): string {
   return new Date(ts).toLocaleTimeString('en-IN', { hour12: false });
 }
 
+/** BTC-INR → BTC; simulated instruments drop their prefix: SIM-RELIANCE → RELIANCE. */
 export function baseAsset(symbol: string) {
+  if (symbol.startsWith('SIM-')) return symbol.slice(4);
   return symbol.split('-')[0] ?? symbol;
 }

@@ -124,12 +124,22 @@ describe('gradeTrip (process, not outcome)', () => {
     expect(g.flags).not.toContain('FOLLOWED_PLAN');
   });
 
-  it('size bands: ≤5% small, >10% oversized, >25% all-in', () => {
-    const at = (pct: number) => gradeTrip({ ...base, entryNotional: pct * 1_000_00 }).flags;
+  it('without a planned stop, size bands use position value: ≤5% small, >10% large, >25% very large', () => {
+    const at = (pct: number) =>
+      gradeTrip({ ...base, planStop: null, planTarget: null, entryNotional: pct * 1_000_00 }).flags;
     expect(at(5)).toContain('SMALL_SIZE');
     expect(at(8)).not.toEqual(expect.arrayContaining(['SMALL_SIZE']));
     expect(at(15)).toContain('OVERSIZED');
     expect(at(30)).toContain('ALL_IN');
+  });
+
+  it('with a planned stop, size is judged by risk to the stop: a 50% position with a 2% stop risks only 1%', () => {
+    const g = gradeTrip({ ...base, entryNotional: 50 * 1_000_00 }); // stop 2% below entry
+    expect(g.details.riskPct).toBe(1);
+    expect(g.flags).toContain('SMALL_SIZE');
+    expect(g.flags).not.toContain('ALL_IN');
+    // the same position with a 15% stop risks 7.5% of equity
+    expect(gradeTrip({ ...base, entryNotional: 50 * 1_000_00, planStop: 85_00 }).flags).toContain('ALL_IN');
   });
 
   it('score is clamped to 0–100 and the tip targets the most costly mistake', () => {
