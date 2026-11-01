@@ -1,6 +1,7 @@
 import { Queue, Worker, type Job } from 'bullmq';
 import type { Logger } from 'pino';
 import { config, type Pool } from '@tradecore/shared/node';
+import { runCoach } from '@tradecore/api';
 
 const connection = { url: config.redisUrl, maxRetriesPerRequest: null };
 
@@ -21,6 +22,8 @@ export const JOBS: Record<string, { everyMs: number; run: Handler }> = {
         )
       ).rows[0],
   },
+  // Trade Coach: turn newly settled trades into graded round trips, weekly skill scores and badges.
+  coach: { everyMs: 10_000, run: (pool) => runCoach(pool) },
   // Market-maker quotes that were cancelled without ever trading carry no history worth keeping.
   'prune-bot-orders': {
     everyMs: 15 * 60_000,

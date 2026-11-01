@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Area, AreaChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle, Skeleton, Tip } from '@/components/ui/primitives';
-import { useInstruments, useMyTrades, usePortfolio } from '@/hooks/data';
+import { useAccountContext, useInstruments, useMyTrades, usePortfolio, withAccount } from '@/hooks/data';
 import { api } from '@/lib/api';
 import { baseAsset, inr, pct, price, qty, signedInr } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -47,9 +47,10 @@ export default function PortfolioPage() {
   const instruments = useInstruments().data;
   const scaleOf = (sym: string) => instruments?.find((i) => i.symbol === sym)?.qtyScale ?? 1;
   const ticks = useMarket((s) => s.ticks);
+  const cid = useAccountContext();
   const equity = useQuery({
-    queryKey: ['portfolio', 'equity'],
-    queryFn: () => api<{ time: number; equity: number }[]>('/portfolio/equity'),
+    queryKey: ['portfolio', 'equity', cid],
+    queryFn: () => api<{ time: number; equity: number }[]>(withAccount('/portfolio/equity', cid)),
   });
 
   if (isLoading || !pf)

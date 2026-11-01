@@ -5,6 +5,17 @@ import { subscribe } from '@/lib/socket';
 import type { Candle, Instrument, MyTrade, Order, Portfolio, TickerRow } from '@/lib/types';
 import { useAuth } from '@/stores/auth';
 import { useMarket, type TapeTrade } from '@/stores/market';
+import { useUi } from '@/stores/ui';
+
+/** Appends ?competitionId=… when the user is trading in a competition wallet. */
+export function withAccount(path: string, competitionId: number | null): string {
+  if (!competitionId) return path;
+  return `${path}${path.includes('?') ? '&' : '?'}competitionId=${competitionId}`;
+}
+
+export function useAccountContext() {
+  return useUi((s) => s.competitionId);
+}
 
 export function useInstruments() {
   return useQuery({
@@ -36,9 +47,10 @@ export function useCandles(symbol: string, tf: string) {
 
 export function usePortfolio() {
   const authed = useAuth((s) => !!s.accessToken);
+  const cid = useAccountContext();
   return useQuery({
-    queryKey: ['portfolio'],
-    queryFn: () => api<Portfolio>('/portfolio'),
+    queryKey: ['portfolio', cid],
+    queryFn: () => api<Portfolio>(withAccount('/portfolio', cid)),
     enabled: authed,
     refetchInterval: 15_000,
   });
@@ -46,18 +58,20 @@ export function usePortfolio() {
 
 export function useOrders(status: 'open' | 'all') {
   const authed = useAuth((s) => !!s.accessToken);
+  const cid = useAccountContext();
   return useQuery({
-    queryKey: ['orders', status],
-    queryFn: () => api<Order[]>(`/orders?status=${status}&limit=200`),
+    queryKey: ['orders', status, cid],
+    queryFn: () => api<Order[]>(withAccount(`/orders?status=${status}&limit=200`, cid)),
     enabled: authed,
   });
 }
 
 export function useMyTrades() {
   const authed = useAuth((s) => !!s.accessToken);
+  const cid = useAccountContext();
   return useQuery({
-    queryKey: ['my-trades'],
-    queryFn: () => api<MyTrade[]>('/portfolio/trades?limit=200'),
+    queryKey: ['my-trades', cid],
+    queryFn: () => api<MyTrade[]>(withAccount('/portfolio/trades?limit=200', cid)),
     enabled: authed,
   });
 }

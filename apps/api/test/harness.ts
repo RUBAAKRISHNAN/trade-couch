@@ -19,6 +19,8 @@ export async function resetDb(p = testPool()) {
   await withTx(p, async (c) => {
     await c.query('ALTER TABLE audit_log DISABLE TRIGGER audit_log_no_update');
     for (const t of [
+      'coach_positions',
+      'coach_cursors',
       'trades',
       'order_events',
       'coach_reports',

@@ -5,4 +5,5 @@ export * from './trading/accounts';
 export * from './trading/instruments';
 export * from './trading/invariants';
 export * from './trading/bus';
+export * from './coach/coach';
 export { AppError } from './errors';

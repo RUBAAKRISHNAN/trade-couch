@@ -98,3 +98,68 @@ export interface User {
   displayName: string;
   role: 'USER' | 'ADMIN';
 }
+
+export interface CoachWeek {
+  week_start: string;
+  skill_score: number;
+  trades: number;
+  win_rate: number | null;
+  avg_win_paise: number | null;
+  avg_loss_paise: number | null;
+  max_drawdown_paise: number | null;
+  habits: string[];
+  goal: string;
+  ai_summary: string | null;
+}
+
+export interface CoachSummary {
+  accountId: number;
+  current: CoachWeek | null;
+  weeks: CoachWeek[];
+  totals: {
+    trips: number;
+    avgScore: number | null;
+    wins: number;
+    pnl: number;
+    grades: Record<string, number>;
+  };
+  flags: { flag: string; n: number }[];
+  badges: {
+    code: string;
+    name: string;
+    description: string;
+    icon: string;
+    earned: boolean;
+    awarded_at: string | null;
+  }[];
+  openPositions: { symbol: string; qty: number; opened_at: string }[];
+}
+
+export interface CoachTrip {
+  id: number;
+  symbol: string;
+  name: string;
+  qty_scale: number;
+  qty: number;
+  entry_price: number;
+  exit_price: number;
+  pnl: number;
+  equity_at_open: number;
+  opened_at: string;
+  closed_at: string;
+  plan_stop: number | null;
+  plan_target: number | null;
+  had_stop_order: boolean;
+  source: 'live' | 'seed';
+  grade: 'A' | 'B' | 'C' | 'D' | 'F';
+  score: number;
+  flags: string[];
+  tip: string;
+  details: {
+    sizePct: number;
+    plannedRR: number | null;
+    holdMinutes: number;
+    moveBeforeEntryPct: number | null;
+    returnPct: number;
+  };
+}

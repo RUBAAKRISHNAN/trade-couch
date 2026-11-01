@@ -11,6 +11,7 @@ import { TradePage } from '@/features/trade/TradePage';
 
 const PortfolioPage = lazy(() => import('@/features/portfolio/PortfolioPage'));
 const ComingSoon = lazy(() => import('@/features/ComingSoon'));
+const CoachPage = lazy(() => import('@/features/coach/CoachPage'));
 
 function Protected({ children }: { children: ReactNode }) {
   const { user, ready } = useAuth();
@@ -54,7 +55,7 @@ export function App({ queryClient }: { queryClient: QueryClient }) {
           <Route path="/trade" element={<TradePage />} />
           <Route path="/trade/:symbol" element={<TradePage />} />
           <Route path="/portfolio" element={<PortfolioPage />} />
-          <Route path="/coach" element={<ComingSoon title="Trade Coach" />} />
+          <Route path="/coach" element={<CoachPage />} />
           <Route path="/compete" element={<ComingSoon title="Competitions" />} />
           <Route path="/learn" element={<ComingSoon title="Learn" />} />
           <Route path="/admin" element={<ComingSoon title="Admin" />} />

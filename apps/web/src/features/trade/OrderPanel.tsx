@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Card, Input, Kbd, Label, Segmented, Slider, Tip } from '@/components/ui/primitives';
-import { usePortfolio } from '@/hooks/data';
+import { useAccountContext, usePortfolio } from '@/hooks/data';
 import { api, ApiError } from '@/lib/api';
 import { baseAsset, inr, parsePrice, parseQty, qty as fmtQty, qtyDecimals, rupeesString } from '@/lib/format';
 import type { Instrument, Order } from '@/lib/types';
@@ -128,6 +128,7 @@ export function OrderPanel({ inst }: { inst: Instrument }) {
     problem = `You only have ${fmtQty(availUnits, inst.qtyScale)} ${baseAsset(inst.symbol)} available (no short selling)`;
   else if (inst.status !== 'ACTIVE') problem = 'Trading is halted for this instrument';
 
+  const competitionId = useAccountContext();
   const place = useMutation({
     mutationFn: () =>
       api<Order>('/orders', {
@@ -142,6 +143,7 @@ export function OrderPanel({ inst }: { inst: Instrument }) {
           stopPrice: isStop ? stopPrice : undefined,
           planStopPrice: planOpen && planStop ? planStop : undefined,
           planTargetPrice: planOpen && planTarget ? planTarget : undefined,
+          competitionId: competitionId ?? undefined,
         },
       }),
     onSuccess: (o) => {
