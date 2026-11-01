@@ -21,7 +21,7 @@ export default defineConfig({
           name: 'worker',
           root: 'apps/worker',
           environment: 'node',
-          include: ['test/market.test.ts', 'test/market-maker.test.ts'],
+          include: ['test/market.test.ts', 'test/market-maker.test.ts', 'test/settler.test.ts'],
         },
       },
       { test: { name: 'engine', root: 'apps/engine', environment: 'node', testTimeout: 120_000 } },

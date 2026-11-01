@@ -10,12 +10,18 @@ const LEASE_MS = 10_000;
  * Consumes one symbol's engine event stream and settles it in Postgres.
  * Exactly ONE settler may run per symbol (events must be applied in order), enforced with a Redis
  * lease (SET NX PX, renewed while alive). Exactly-once is enforced in Postgres by engine_offsets, so
- * even a duplicate delivery after a crash is harmless.
+ * even a duplicate delivery after a crash or a lease hand-over is harmless.
+ *
+ * Losing the lease (a renewal failed or another process took over) sends the settler back to STANDBY:
+ * it stops consuming and keeps trying to re-acquire, so some settler always ends up active. Only stop()
+ * (process shutdown) ends it for good.
  */
 export class Settler {
-  private stopped = false;
+  private shuttingDown = false;
+  private leaseLost = false;
   private leaseTimer: NodeJS.Timeout | undefined;
   private readonly owner = `settler-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
+  state: 'standby' | 'active' | 'stopped' = 'standby';
   settled = 0;
   lastSettledAt = 0;
 
@@ -25,14 +31,19 @@ export class Settler {
     private reader: Redis,
     private pool: Pool,
     private log: Logger,
+    private opts: { leaseMs?: number; retryMs?: number; keyPrefix?: string } = {},
   ) {}
 
+  private get leaseMs() {
+    return this.opts.leaseMs ?? LEASE_MS;
+  }
+
   private leaseKey() {
-    return `tc:lease:settler:${this.symbol}`;
+    return `${this.opts.keyPrefix ?? 'tc:lease:settler:'}${this.symbol}`;
   }
 
   private async acquire(): Promise<boolean> {
-    return (await this.redis.set(this.leaseKey(), this.owner, 'PX', LEASE_MS, 'NX')) === 'OK';
+    return (await this.redis.set(this.leaseKey(), this.owner, 'PX', this.leaseMs, 'NX')) === 'OK';
   }
 
   private async renew(): Promise<boolean> {
@@ -42,20 +53,44 @@ export class Settler {
       1,
       this.leaseKey(),
       this.owner,
-      LEASE_MS,
+      this.leaseMs,
     );
     return r === 1;
   }
 
   async run() {
-    while (!this.stopped && !(await this.acquire())) await new Promise((r) => setTimeout(r, 2000));
-    this.leaseTimer = setInterval(async () => {
-      if (!(await this.renew())) {
-        this.log.error({ symbol: this.symbol }, 'lost settler lease, stopping');
-        this.stop();
-      }
-    }, LEASE_MS / 3);
+    while (!this.shuttingDown) {
+      // standby: wait for the lease
+      this.state = 'standby';
+      while (!this.shuttingDown && !(await this.acquire().catch(() => false)))
+        await new Promise((r) => setTimeout(r, this.opts.retryMs ?? 2000));
+      if (this.shuttingDown) break;
 
+      this.leaseLost = false;
+      this.state = 'active';
+      this.leaseTimer = setInterval(() => {
+        // a Redis error counts as lost too: we can no longer prove we hold the lease
+        void this.renew()
+          .catch(() => false)
+          .then((ok) => {
+            if (ok || this.leaseLost || this.shuttingDown) return;
+            this.leaseLost = true;
+            this.state = 'standby';
+            this.log.warn({ symbol: this.symbol }, 'lost settler lease, returning to standby');
+          });
+      }, this.leaseMs / 3);
+      try {
+        await this.consume();
+      } catch (e) {
+        this.log.error({ err: e, symbol: this.symbol }, 'settler loop crashed; returning to standby');
+      } finally {
+        clearInterval(this.leaseTimer);
+      }
+    }
+    this.state = 'stopped';
+  }
+
+  private async consume() {
     const key = streams.events(this.symbol);
     try {
       await this.redis.xgroup('CREATE', key, SETTLER_GROUP, '0', 'MKSTREAM');
@@ -63,8 +98,8 @@ export class Settler {
       if (!String(e).includes('BUSYGROUP')) throw e;
     }
     this.log.info({ symbol: this.symbol }, 'settler running');
-    let cursor = '0';
-    while (!this.stopped) {
+    let cursor = '0'; // first re-read anything delivered but not acknowledged (e.g. by a previous owner)
+    while (!this.shuttingDown && !this.leaseLost) {
       const res = (await this.reader.xreadgroup(
         'GROUP',
         SETTLER_GROUP,
@@ -78,6 +113,9 @@ export class Settler {
         cursor,
       )) as [string, [string, string[]][]][] | null;
       const entries = res?.[0]?.[1] ?? [];
+      // the lease may have been lost while we were blocked reading: leave these entries pending (unacked) so the
+      // new owner re-reads them. Even if two settlers overlapped, engine_offsets (locked FOR UPDATE) keeps it exactly-once.
+      if (this.leaseLost || this.shuttingDown) break;
       if (entries.length === 0) {
         if (cursor === '0') cursor = '>';
         continue;
@@ -109,7 +147,7 @@ export class Settler {
   }
 
   stop() {
-    this.stopped = true;
+    this.shuttingDown = true;
     clearInterval(this.leaseTimer);
     void this.redis.eval(
       `if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end`,
