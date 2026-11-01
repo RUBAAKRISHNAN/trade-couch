@@ -1,11 +1,16 @@
 import { Queue, Worker, type Job } from 'bullmq';
 import type { Logger } from 'pino';
 import { config, type Pool } from '@tradecore/shared/node';
-import { runCoach } from '@tradecore/api';
+import { Redis } from 'ioredis';
+import { reapLostOrders, runCoach } from '@tradecore/api';
 
 const connection = { url: config.redisUrl, maxRetriesPerRequest: null };
 
 type Handler = (pool: Pool, log: Logger) => Promise<unknown>;
+
+let redisForReaper: Redis | undefined;
+const reaperRedis = () =>
+  (redisForReaper ??= new Redis(config.redisUrl, { maxRetriesPerRequest: null, connectionName: 'reaper' }));
 
 const CANDLE_TFS: [tf: string, bucket: string, lookback: string][] = [
   ['1m', '1 minute', '3 minutes'],
@@ -81,6 +86,16 @@ export const JOBS: Record<string, { everyMs: number; run: Handler }> = {
            ON CONFLICT DO NOTHING`,
         )
       ).rowCount,
+  },
+  // Orders lost between the database commit and the engine stream (process died in between): reject them and
+  // release their holds — but only once it's provably safe (see apps/api/src/trading/reaper.ts).
+  'reap-lost-orders': {
+    everyMs: 30_000,
+    run: async (_pool, log) => {
+      const res = await reapLostOrders(_pool, reaperRedis());
+      for (const r of res) if (r.reaped || r.skipped) log.warn(r, 'lost-order reaper');
+      return res;
+    },
   },
   // Trade Coach: turn newly settled trades into graded round trips, weekly skill scores and badges.
   coach: { everyMs: 10_000, run: (pool) => runCoach(pool) },

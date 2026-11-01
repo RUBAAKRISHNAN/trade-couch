@@ -79,6 +79,7 @@ test('admins see system health and the order pipeline', async ({ browser }) => {
   await expect(admin.getByText('Order pipeline per instrument')).toBeVisible();
   await expect(admin.getByRole('row', { name: /^BTC-INR (Trading|Halted)/ })).toBeVisible();
   await admin.getByRole('button', { name: 'Run checks' }).click();
-  await expect(admin.getByText('All invariants hold.')).toBeVisible();
+  // the ledger check scans every trade and order (~4 s on a well-used dev database), so allow it more time
+  await expect(admin.getByText('All invariants hold.')).toBeVisible({ timeout: 45_000 });
   await admin.close();
 });

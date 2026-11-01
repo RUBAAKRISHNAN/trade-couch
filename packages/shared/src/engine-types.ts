@@ -61,7 +61,18 @@ export type RejectReason =
   | 'UNKNOWN_ORDER'
   | 'DUPLICATE_ORDER'
   | 'NOT_OWNER'
-  | 'BAD_PARAMS';
+  | 'BAD_PARAMS'
+  /** a NEW order reached the engine later than NEW_ORDER_TTL_MS after it was placed */
+  | 'STALE';
+
+/**
+ * A NEW order must reach the matching engine within this time, or the engine rejects it as STALE. Nobody wants a
+ * minute-old market order executed at a new price, and it lets the lost-order reaper (which waits LONGER than this)
+ * be sure a reaped order can never be matched later.
+ */
+export const NEW_ORDER_TTL_MS = 30_000;
+/** Orders still PENDING with no engine events after this long are checked by the lost-order reaper. */
+export const LOST_ORDER_AFTER_MS = 2 * NEW_ORDER_TTL_MS;
 
 interface EventBase {
   seq: number;

@@ -215,18 +215,23 @@ export async function placeOrder(
   return order;
 }
 
-/** Compensation when a command could not be delivered: reject the PENDING order and release its hold. */
-async function failPendingOrder(pool: Pool, orderId: number, reason: string) {
-  await withTx(pool, async (c) => {
-    const o = (await c.query<OrderRow>('SELECT * FROM orders WHERE id = $1', [orderId])).rows[0];
-    if (!o || o.status !== 'PENDING') return;
-    await c.query('SELECT 1 FROM accounts WHERE id = $1 FOR UPDATE', [o.account_id]);
-    if (o.held_units > 0)
-      await c.query('SELECT 1 FROM holdings WHERE account_id = $1 AND symbol = $2 FOR UPDATE', [
-        o.account_id,
-        o.symbol,
-      ]);
-    await c.query('SELECT 1 FROM orders WHERE id = $1 FOR UPDATE', [orderId]);
+/**
+ * Compensation when a command was never delivered to the engine: reject the PENDING order and release its hold.
+ * Returns false (and changes nothing) if the order is no longer PENDING. Locks in the same global order as
+ * settlement (account → holding → order), then RE-READS the order under the lock, so a concurrent change can't
+ * make it release the wrong amount.
+ */
+export async function failPendingOrder(pool: Pool, orderId: number, reason: string): Promise<boolean> {
+  return withTx(pool, async (c) => {
+    const peek = (await c.query<OrderRow>('SELECT * FROM orders WHERE id = $1', [orderId])).rows[0];
+    if (!peek || peek.status !== 'PENDING') return false;
+    await c.query('SELECT 1 FROM accounts WHERE id = $1 FOR UPDATE', [peek.account_id]);
+    await c.query('SELECT 1 FROM holdings WHERE account_id = $1 AND symbol = $2 FOR UPDATE', [
+      peek.account_id,
+      peek.symbol,
+    ]);
+    const o = (await c.query<OrderRow>('SELECT * FROM orders WHERE id = $1 FOR UPDATE', [orderId])).rows[0]!;
+    if (o.status !== 'PENDING') return false;
     await c.query('UPDATE accounts SET cash_held_paise = cash_held_paise - $2 WHERE id = $1', [
       o.account_id,
       o.held_cash_paise,
@@ -240,6 +245,7 @@ async function failPendingOrder(pool: Pool, orderId: number, reason: string) {
       `UPDATE orders SET status = 'REJECTED', reason = $2, held_cash_paise = 0, held_units = 0, updated_at = now() WHERE id = $1`,
       [orderId, reason],
     );
+    return true;
   });
 }
 

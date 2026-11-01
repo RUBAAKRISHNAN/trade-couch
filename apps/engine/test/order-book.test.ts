@@ -204,3 +204,19 @@ describe('OrderBook basics', () => {
     expect(() => OrderBook.replay(cfg, [log[1]!])).toThrow(/gap/);
   });
 });
+
+describe('stale NEW orders', () => {
+  it('rejectNew emits one REJECTED event and makes a later redelivery of the same order a no-op', () => {
+    const b = newBook();
+    b.process(order(1, 'SELL', 2, 10_000));
+    const late = order(2, 'BUY', 2, 10_000);
+    const evs = b.rejectNew(late, 'STALE');
+    expect(evs).toEqual([
+      expect.objectContaining({ type: 'REJECTED', orderId: late.orderId, reason: 'STALE', cmd: 'NEW' }),
+    ]);
+    // the same command arriving again (e.g. redelivered from the stream) must not trade
+    expect(b.process(late)).toEqual([]);
+    expect(b.rejectNew(late, 'STALE')).toEqual([]);
+    expect(b.bestAsk()).toBe(10_000); // the resting ask is untouched
+  });
+});

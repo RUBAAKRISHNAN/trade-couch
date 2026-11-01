@@ -111,6 +111,19 @@ export class OrderBook {
     return this.out;
   }
 
+  /**
+   * Reject a NEW order without looking at it (e.g. it arrived after NEW_ORDER_TTL_MS). Marks it seen, so a
+   * redelivery is ignored, exactly like any other handled order. Returns the REJECTED event.
+   */
+  rejectNew(cmd: NewOrderCommand, reason: RejectReason): EngineEvent[] {
+    this.out = [];
+    if (!this.seen.has(cmd.orderId)) {
+      this.seen.add(cmd.orderId);
+      this.reject(cmd, reason, 'NEW');
+    }
+    return this.out;
+  }
+
   private emit(e: EventInput): void {
     const ev = { ...e, seq: ++this.seq, symbol: this.cfg.symbol } as EngineEvent;
     this.out.push(ev);

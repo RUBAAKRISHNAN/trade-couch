@@ -122,3 +122,24 @@ the command; other nodes catch up within a second, and the engine rejects regard
 
 `npm run load:test` creates its users with role BOT, which keeps them out of leaderboards and the Trade Coach while still
 exercising the full order path. They remain in the dev database (they are real ledger participants).
+
+## D19 — Lost orders: reaper + order TTL instead of a full outbox
+
+Placing an order commits the order and its hold in Postgres, then adds the command to Redis. A crash between the two
+leaves the order PENDING forever with its money reserved (seen for real when a dev server was killed mid-startup). A
+transactional outbox would remove the gap, at the cost of a relay process and extra latency on every order. Instead:
+
+- The engine rejects NEW orders that reach it more than `NEW_ORDER_TTL_MS` (30 s) after being placed (`STALE`). This is
+  good behaviour on its own: a minute-old market order shouldn't fill at a new price.
+- A worker job (`reapLostOrders`, every 30 s) rejects orders that are PENDING after `LOST_ORDER_AFTER_MS` (60 s) with no
+  engine events — but only when the engine's consumer group has nothing pending (lag 0), a heartbeat taken afterwards
+  shows a seq settlement has reached, so a command that was ever sent would have left events. Any late command is
+  older than the TTL and gets rejected by the engine, so a reaped order can never be matched.
+- `failPendingOrder` now re-reads the order under its row lock (it used values read before locking).
+
+## D20 — Separate rate-limit buckets for login and session refresh
+
+Login and register keep 20 / minute per IP to slow password guessing. `/auth/refresh` (runs on every page load; needs a
+256-bit random token, so it can't be brute-forced) has its own 120 / minute bucket. Sharing one bucket locked users out
+of logging in during normal browsing — worst in development, where every local tab comes through the Vite proxy as
+127.0.0.1.

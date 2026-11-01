@@ -1,6 +1,13 @@
 import { Redis } from 'ioredis';
 import pino from 'pino';
-import { ENGINE_GROUP, channels, streams, type EngineCommand, type EngineEvent } from '@tradecore/shared';
+import {
+  ENGINE_GROUP,
+  NEW_ORDER_TTL_MS,
+  channels,
+  streams,
+  type EngineCommand,
+  type EngineEvent,
+} from '@tradecore/shared';
 import type { Pool } from '@tradecore/shared/node';
 import { OrderBook, type BookConfig } from './book/order-book';
 
@@ -68,7 +75,10 @@ export class SymbolRunner {
   private async handle(cmds: EngineCommand[], ackIds: string[]): Promise<void> {
     const evs: EngineEvent[] = [];
     for (const c of cmds) {
-      evs.push(...this.book.process(c));
+      // TTL check at intake (wall clock). Replay rebuilds from the EVENT log, so the book stays deterministic.
+      if (c.kind === 'NEW' && Date.now() - c.ts > NEW_ORDER_TTL_MS)
+        evs.push(...this.book.rejectNew(c, 'STALE'));
+      else evs.push(...this.book.process(c));
       this.processed++;
       if (c.kind !== 'MARK') this.lastCommandLagMs = Date.now() - c.ts;
     }

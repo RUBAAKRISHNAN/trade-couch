@@ -18,7 +18,11 @@ import {
 } from '../lib/auth';
 import { createAccount } from '../trading/accounts';
 
+// Login/register: strict, to slow down password guessing. Refresh needs a valid 256-bit random token, so it can't be
+// brute-forced; it runs on every page load, so it gets a separate, looser bucket (sharing one let normal browsing,
+// especially several local tabs behind the dev proxy on one IP, lock users out of logging in).
 const authLimit = { rateLimit: { max: 20, timeWindow: '1 minute' } };
+const refreshLimit = { rateLimit: { max: 120, timeWindow: '1 minute' } };
 const userOut = z.object({ id: z.string(), email: z.string(), displayName: z.string(), role: z.string() });
 const tokenOut = z.object({ accessToken: z.string(), expiresIn: z.number(), user: userOut });
 
@@ -93,7 +97,7 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
 
   app.post(
     '/refresh',
-    { config: authLimit, schema: { tags: ['auth'], response: { 200: tokenOut } } },
+    { config: refreshLimit, schema: { tags: ['auth'], response: { 200: tokenOut } } },
     async (req, reply) => {
       const token = req.cookies[REFRESH_COOKIE];
       if (!token) throw new AppError(401, 'UNAUTHORIZED', 'No refresh token');

@@ -21,10 +21,11 @@ import { COACH_FLAGS, type CoachFlag } from '@tradecore/shared';
 import { Button } from '@/components/ui/button';
 import { Badge, Card, CardContent, CardHeader, CardTitle, Skeleton, Tip } from '@/components/ui/primitives';
 import { useAccountContext, withAccount } from '@/hooks/data';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { baseAsset, pct, price, qty, signedInr } from '@/lib/format';
 import type { CoachSummary, CoachTrip } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/stores/auth';
 
 const GRADE_STYLE: Record<CoachTrip['grade'], string> = {
   A: 'bg-buy text-white dark:text-[#06140e]',
@@ -44,10 +45,14 @@ const BADGE_ICONS: Record<string, typeof Award> = {
 
 const flagInfo = (f: string) => COACH_FLAGS[f as CoachFlag];
 
+// Like every other per-user query: wait until the session is restored, or the first request goes out without a
+// token, gets a 401, and sits in TanStack's retry backoff while the page shows a skeleton.
 function useCoachSummary() {
   const cid = useAccountContext();
+  const authed = useAuth((st) => !!st.accessToken);
   return useQuery({
     queryKey: ['coach', 'summary', cid],
+    enabled: authed,
     queryFn: () => api<CoachSummary>(withAccount('/coach/summary', cid)),
     refetchInterval: 15_000,
   });
@@ -55,8 +60,10 @@ function useCoachSummary() {
 
 function useCoachTrips() {
   const cid = useAccountContext();
+  const authed = useAuth((st) => !!st.accessToken);
   return useInfiniteQuery({
     queryKey: ['coach', 'trips', cid],
+    enabled: authed,
     initialPageParam: 0,
     queryFn: ({ pageParam }) =>
       api<CoachTrip[]>(withAccount(`/coach/trips?limit=20${pageParam ? `&before=${pageParam}` : ''}`, cid)),
@@ -236,7 +243,20 @@ export default function CoachPage() {
   const trips = useCoachTrips();
   const s = summary.data;
 
-  if (summary.isLoading || !s)
+  if (summary.isError && !s)
+    return (
+      <Card className="mx-auto mt-6 max-w-md p-6 text-center" role="alert">
+        <p className="font-medium">Couldn’t load your coach report</p>
+        <p className="mt-1 text-sm text-muted">
+          {summary.error instanceof ApiError ? summary.error.message : 'Network error'}
+        </p>
+        <Button className="mt-3" variant="outline" onClick={() => void summary.refetch()}>
+          Try again
+        </Button>
+      </Card>
+    );
+
+  if (!s)
     return (
       <div className="mx-auto grid max-w-6xl gap-3 p-3 md:grid-cols-3">
         {Array.from({ length: 6 }, (_, i) => (
