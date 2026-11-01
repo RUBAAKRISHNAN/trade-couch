@@ -61,7 +61,7 @@ export function TradePage() {
       <MarketHeader inst={inst} />
 
       {/* desktop terminal layout */}
-      <div className="hidden min-h-0 flex-1 gap-2 lg:grid lg:grid-cols-[200px_minmax(0,1fr)_270px_300px] lg:grid-rows-[minmax(0,1fr)_240px]">
+      <div className="hidden min-h-0 flex-1 gap-2 lg:grid lg:grid-cols-[200px_minmax(0,1fr)_minmax(270px,320px)_300px] lg:grid-rows-[minmax(0,1fr)_240px]">
         <div className="row-span-2 min-h-0">
           <Watchlist active={symbol} />
         </div>

@@ -2,12 +2,86 @@ import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { requireAuth } from '../app';
 import { resolveAccount } from '../lib/accounts';
+import { AppError } from '../errors';
+import { buildChatRequest, buildTraderContext, COACH_SYSTEM_PROMPT, GeminiError } from '../coach/chat';
 
 const q = z.object({ competitionId: z.coerce.number().int().positive().optional() });
 
 export const coachRoutes: FastifyPluginAsyncZod = async (app) => {
-  const { pool } = app.deps;
+  const { pool, chat } = app.deps;
   app.addHook('preHandler', requireAuth);
+
+  app.get('/chat/status', { schema: { tags: ['coach'], security: [{ bearer: [] }] } }, async () => ({
+    enabled: !!chat,
+    model: chat?.name ?? null,
+  }));
+
+  /**
+   * AI coach chat, streamed as Server-Sent Events: `data: {"text": "..."}` chunks, then `data: {"done": true}`,
+   * or `data: {"error": "..."}`. The client sends the conversation so far (the server stores nothing).
+   */
+  app.post(
+    '/chat',
+    {
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+      schema: {
+        tags: ['coach'],
+        security: [{ bearer: [] }],
+        body: z.object({
+          competitionId: z.number().int().positive().optional(),
+          messages: z
+            .array(z.object({ role: z.enum(['user', 'model']), text: z.string().trim().min(1).max(2000) }))
+            .min(1)
+            .max(20)
+            .refine((m) => m.at(-1)?.role === 'user', 'the last message must be from the user'),
+        }),
+      },
+    },
+    async (req, reply) => {
+      if (!chat)
+        throw new AppError(
+          503,
+          'AI_DISABLED',
+          'The AI coach is not set up: add GEMINI_API_KEY to .env and restart',
+        );
+      const acct = await resolveAccount(pool, req.user!.id, req.body.competitionId);
+      const context = await buildTraderContext(pool, acct);
+
+      const abort = new AbortController();
+      req.raw.on('close', () => abort.abort());
+      reply.hijack();
+      reply.raw.writeHead(200, {
+        'content-type': 'text/event-stream; charset=utf-8',
+        'cache-control': 'no-cache, no-transform',
+        connection: 'keep-alive',
+        'x-request-id': req.id,
+      });
+      const send = (o: object) => reply.raw.write(`data: ${JSON.stringify(o)}\n\n`);
+      try {
+        for await (const text of chat.stream(
+          COACH_SYSTEM_PROMPT,
+          buildChatRequest(context, req.body.messages),
+          abort.signal,
+        ))
+          send({ text });
+        send({ done: true });
+      } catch (e) {
+        if (!abort.signal.aborted) {
+          req.log.warn({ err: e instanceof GeminiError ? e.message : String(e) }, 'coach chat failed');
+          send({
+            error:
+              e instanceof GeminiError && (e.status === 401 || e.status === 403 || e.status === 400)
+                ? 'The AI service rejected the request — check GEMINI_API_KEY and GEMINI_MODEL in .env.'
+                : e instanceof GeminiError && e.status === 429
+                  ? 'The AI service is busy or your free quota is used up. Try again in a minute.'
+                  : 'The AI coach could not answer right now. Please try again.',
+          });
+        }
+      } finally {
+        reply.raw.end();
+      }
+    },
+  );
 
   /** Skill Score (this week + history), grade mix, habit counts, badges. */
   app.get(

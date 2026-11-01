@@ -40,6 +40,13 @@ export const config = {
     return (process.env.MARKET_FEEDS ?? 'coinbase,binance,kraken,simulated').split(',').map((s) => s.trim());
   },
   get aiProvider() {
-    return process.env.AI_PROVIDER ?? '';
+    return process.env.AI_PROVIDER ?? (process.env.GEMINI_API_KEY ? 'gemini' : '');
+  },
+  /** Gemini API key from Google AI Studio. Server-side only; never sent to the browser or logged. */
+  get geminiApiKey() {
+    return process.env.GEMINI_API_KEY ?? '';
+  },
+  get geminiModel() {
+    return process.env.GEMINI_MODEL ?? 'gemini-3.8-flash';
   },
 };

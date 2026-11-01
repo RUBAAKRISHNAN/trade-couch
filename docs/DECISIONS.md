@@ -143,3 +143,24 @@ Login and register keep 20 / minute per IP to slow password guessing. `/auth/ref
 256-bit random token, so it can't be brute-forced) has its own 120 / minute bucket. Sharing one bucket locked users out
 of logging in during normal browsing — worst in development, where every local tab comes through the Vite proxy as
 127.0.0.1.
+
+## D21 — AI coach chat (Google Gemini), grounded in the trader's own data
+
+`POST /api/coach/chat` streams (SSE) an answer from Gemini (`streamGenerateContent?alt=sse`, model from
+`GEMINI_MODEL`, default `gemini-3.8-flash`). The server builds a compact factual summary of the account — grades,
+habit counts, weekly Skill Scores, the last 20 round trips with size / risk / R:R / hold time, holdings — and attaches it
+to the first user message; the system prompt limits the model to process coaching from that data and forbids buy/sell
+calls, price predictions and invented numbers. No name, email or ids are sent. The key lives only in `.env` and is sent
+in the `x-goog-api-key` header (not the URL, so it can't leak into request logs). The server stores no chat history;
+the client sends the conversation (max 20 turns × 2,000 chars), and the endpoint is limited to 10 requests / minute per
+user. Without a key the app works as before and the Coach page shows setup steps. A `ChatProvider` interface keeps the
+model swappable and lets tests use a fake.
+
+A Gemini app subscription (Gemini Advanced / Pro) does not include API access; the API key comes from Google AI Studio.
+
+## D22 — Tests use their own rate-limit keys
+
+The API test that proves logins get a 429 after 20 attempts used the same Redis prefix and client IP (127.0.0.1) as
+the dev app, so every `npm test` filled the running app's login bucket for a minute (and wiped its counters) — the
+"unexplained" 429s in the e2e tests. `buildApp` now takes `rateLimitNamespace`; the test uses its own prefix and
+deletes only its own keys.

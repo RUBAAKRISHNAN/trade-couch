@@ -4,12 +4,22 @@ import { buildApp } from './app';
 import { createPrisma } from './lib/prisma';
 import { attachRealtime } from './realtime';
 import { RedisCommandBus } from './trading/bus';
+import { GeminiProvider } from './coach/chat';
 
 const pool = createPool(undefined, 20);
 const redis = new Redis(config.redisUrl, { connectionName: 'api', maxRetriesPerRequest: 3 });
 const prisma = createPrisma();
 const app = await buildApp(
-  { pool, prisma, redis, bus: new RedisCommandBus(redis) },
+  {
+    pool,
+    prisma,
+    redis,
+    bus: new RedisCommandBus(redis),
+    chat:
+      config.aiProvider === 'gemini' && config.geminiApiKey
+        ? new GeminiProvider(config.geminiApiKey, config.geminiModel)
+        : undefined,
+  },
   {
     logger: {
       level: process.env.LOG_LEVEL ?? 'info',

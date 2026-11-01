@@ -6,7 +6,9 @@ import {
   CrosshairMode,
   HistogramSeries,
   LineSeries,
+  TickMarkType,
   type IChartApi,
+  type Time,
   type ISeriesApi,
   type UTCTimestamp,
 } from 'lightweight-charts';
@@ -49,9 +51,31 @@ export function PriceChart({ inst }: { inst: Instrument }) {
       autoSize: true,
       crosshair: { mode: CrosshairMode.Normal },
       rightPriceScale: { borderVisible: false },
-      timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false },
+      // lightweight-charts shows UTC by default; format axis and crosshair in the viewer's time zone (IST in India)
+      // so the chart agrees with the trade tape and order times
+      timeScale: {
+        borderVisible: false,
+        timeVisible: true,
+        secondsVisible: false,
+        tickMarkFormatter: (t: Time, type: TickMarkType) => {
+          const d = new Date((t as number) * 1000);
+          if (type === TickMarkType.Year) return String(d.getFullYear());
+          if (type === TickMarkType.Month) return d.toLocaleDateString('en-IN', { month: 'short' });
+          if (type === TickMarkType.DayOfMonth)
+            return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+          return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false });
+        },
+      },
       localization: {
         priceFormatter: (p: number) => (p / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 }),
+        timeFormatter: (t: Time) =>
+          new Date((t as number) * 1000).toLocaleString('en-IN', {
+            day: 'numeric',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+          }),
       },
     });
     const candle = c.addSeries(CandlestickSeries, { borderVisible: false, priceLineVisible: true });

@@ -397,6 +397,7 @@ export async function awardBadges(pool: Pool): Promise<number> {
        SELECT DISTINCT a.user_id, 'STEADY_WEEK' FROM weekly_skill w JOIN accounts a ON a.id = w.account_id
          WHERE w.trades >= 5 AND w.skill_score >= 80
      ) earned
+     WHERE code IN (SELECT code FROM badges) -- a badge missing from the catalogue is skipped, not fatal
      ON CONFLICT DO NOTHING`,
   );
   return r.rowCount ?? 0;

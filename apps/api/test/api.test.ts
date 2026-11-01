@@ -179,9 +179,10 @@ describe('orders over HTTP', () => {
 
 describe('rate limiting', () => {
   it('limits auth attempts per client (Redis-backed)', async () => {
-    const limited = await buildApp({ pool, prisma, redis, bus: ex });
+    // own key prefix: this test must not fill (or wipe) the login counters of an app running on this machine
+    const ns = `tc:test:rl:${Date.now().toString(36)}:`;
+    const limited = await buildApp({ pool, prisma, redis, bus: ex }, { rateLimitNamespace: ns });
     await limited.ready();
-    await redis.eval("for _,k in ipairs(redis.call('keys','tc:rl:*')) do redis.call('del',k) end", 0);
     const codes: number[] = [];
     for (let i = 0; i < 22; i++)
       codes.push(
@@ -194,5 +195,7 @@ describe('rate limiting', () => {
     expect(codes.filter((c) => c === 401)).toHaveLength(20);
     expect(codes.slice(-2)).toEqual([429, 429]);
     await limited.close();
+    const keys = await redis.keys(`${ns}*`);
+    if (keys.length) await redis.del(...keys);
   });
 });

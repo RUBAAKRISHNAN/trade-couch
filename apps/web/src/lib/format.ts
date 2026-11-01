@@ -29,6 +29,16 @@ export function price(paise: number | null | undefined): string {
   return num2.format(paise / 100);
 }
 
+const int0 = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 });
+/**
+ * Price for dense tables: drops the paise when the instrument only moves in whole rupees (BTC's tick is ₹100,
+ * so "68,75,700.00" → "68,75,700"), which keeps narrow columns from overflowing.
+ */
+export function tickPrice(paise: number | null | undefined, tickPaise: number): string {
+  if (paise === null || paise === undefined) return '—';
+  return tickPaise % 100 === 0 ? int0.format(paise / 100) : price(paise);
+}
+
 export function signedInr(paise: number): string {
   return `${paise > 0 ? '+' : paise < 0 ? '−' : ''}${inr(Math.abs(paise))}`;
 }

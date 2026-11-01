@@ -21,6 +21,8 @@ of habits: no stop-loss, betting too much, revenge trading after a loss, chasing
 - **Trade Coach.** Each finished trade gets an A–F grade for _process_ — stop-loss, risk to the stop, planned
   risk : reward, following the plan — and flags habits: FOMO, revenge trades, overtrading, holding losers. A weekly
   Skill Score, a goal for next week, and badges. A disciplined loss can earn an A; a lucky all-in win earns an F.
+- **AI coach chat (Google Gemini).** Ask "where am I losing money?" or "what should I improve?" and get an answer
+  built from your own grades, habits and trades — never buy/sell tips. Optional: set `GEMINI_API_KEY` in `.env`.
 - **Competitions** with fresh, equal wallets and live leaderboards — where the Coach shows who traded _smart_.
 - **Learn** — seven short lessons on the live market: the order book, an order preview that walks the real book, price-time
   priority, candles, P&L, liquidity, and a risk-based position-size calculator.

@@ -26,7 +26,15 @@ import { coachRoutes } from './routes/coach';
 import { competitionRoutes } from './routes/competitions';
 import { adminRoutes } from './routes/admin';
 
-export async function buildApp(deps: AppDeps, opts: { logger?: boolean | object; rateLimit?: boolean } = {}) {
+export async function buildApp(
+  deps: AppDeps,
+  opts: {
+    logger?: boolean | object;
+    rateLimit?: boolean;
+    /** Redis key prefix for rate-limit counters; tests use their own so they never touch a running app's */
+    rateLimitNamespace?: string;
+  } = {},
+) {
   const app = Fastify({
     logger: opts.logger ?? false,
     genReqId: (req) => (req.headers['x-request-id'] as string | undefined)?.slice(0, 64) || randomUUID(),
@@ -59,7 +67,7 @@ export async function buildApp(deps: AppDeps, opts: { logger?: boolean | object;
       max: 600,
       timeWindow: '1 minute',
       redis: deps.redis,
-      nameSpace: 'tc:rl:',
+      nameSpace: opts.rateLimitNamespace ?? 'tc:rl:',
       keyGenerator: (req) => req.user?.id ?? req.ip,
     });
 

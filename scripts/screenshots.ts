@@ -10,7 +10,11 @@ const out = path.resolve(import.meta.dirname, '../docs/screenshots');
 const channel = process.env.SCREENSHOT_CHANNEL ?? 'msedge';
 
 const browser = await chromium.launch(channel === 'chromium' ? {} : { channel });
-const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: 'dark' });
+const viewport = {
+  width: Number(process.env.SCREENSHOT_WIDTH ?? 1440),
+  height: Number(process.env.SCREENSHOT_HEIGHT ?? 900),
+};
+const ctx = await browser.newContext({ viewport, colorScheme: 'dark' });
 
 async function login(page: Page, who: 'asha' | 'admin') {
   await page.goto(`${base}/login`);
@@ -27,6 +31,16 @@ async function shot(page: Page, route: string, file: string, waitFor: string) {
 
 const page = await ctx.newPage();
 await login(page, 'asha');
+if (process.env.SCREENSHOT_ONLY === 'coach') {
+  await shot(page, '/coach', process.env.SCREENSHOT_FILE ?? 'coach.png', 'Ask your AI coach');
+  await browser.close();
+  process.exit(0);
+}
+if (process.env.SCREENSHOT_ONLY === 'trade') {
+  await shot(page, '/trade/BTC-INR', process.env.SCREENSHOT_FILE ?? 'trade.png', 'Order book');
+  await browser.close();
+  process.exit(0);
+}
 await shot(page, '/trade', 'trade.png', 'Order book');
 await shot(page, '/coach', 'coach.png', 'Trade report cards');
 await shot(page, '/compete', 'compete.png', 'leaderboard');

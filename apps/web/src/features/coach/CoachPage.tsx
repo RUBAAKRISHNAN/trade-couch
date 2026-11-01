@@ -26,6 +26,7 @@ import { baseAsset, pct, price, qty, signedInr } from '@/lib/format';
 import type { CoachSummary, CoachTrip } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/stores/auth';
+import { CoachChat } from './CoachChat';
 
 const GRADE_STYLE: Record<CoachTrip['grade'], string> = {
   A: 'bg-buy text-white dark:text-[#06140e]',
@@ -386,6 +387,8 @@ export default function CoachPage() {
           tip="The biggest drop from a high point in your equity this week."
         />
       </div>
+
+      <CoachChat />
 
       <div className="grid gap-3 md:grid-cols-3">
         <Card>

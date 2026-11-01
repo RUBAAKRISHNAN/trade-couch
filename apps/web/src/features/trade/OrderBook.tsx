@@ -10,7 +10,7 @@ import {
   Tip,
 } from '@/components/ui/primitives';
 import { useOrders } from '@/hooks/data';
-import { price, qty } from '@/lib/format';
+import { price, qty, tickPrice } from '@/lib/format';
 import type { Instrument } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { useMarket, type BookLevel } from '@/stores/market';
@@ -32,12 +32,14 @@ const LevelRow = memo(function LevelRow({
   side,
   max,
   scale,
+  tick,
   mine,
 }: {
   row: Row;
   side: 'bid' | 'ask';
   max: number;
   scale: number;
+  tick: number;
   mine: boolean;
 }) {
   const setPrefill = useUi((s) => s.setPrefill);
@@ -46,7 +48,7 @@ const LevelRow = memo(function LevelRow({
       type="button"
       onClick={() => setPrefill(row.price)}
       title="Click to use this price in the order form"
-      className="relative grid w-full cursor-pointer grid-cols-3 px-3 py-[3px] text-right text-xs hover:bg-panel-2"
+      className="relative grid w-full grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 cursor-pointer px-3 py-[3px] text-right text-xs hover:bg-panel-2"
     >
       {/* depth bar: how much total size sits at this level and better */}
       <span
@@ -57,17 +59,17 @@ const LevelRow = memo(function LevelRow({
         )}
         style={{ width: `${(row.cum / max) * 100}%` }}
       />
-      <span className={cn('num relative text-left', side === 'bid' ? 'text-buy' : 'text-sell')}>
+      <span className={cn('num relative truncate text-left', side === 'bid' ? 'text-buy' : 'text-sell')}>
         {mine && (
           <span
             className="mr-1 inline-block size-1.5 rounded-full bg-accent align-middle"
             aria-label="your order"
           />
         )}
-        {price(row.price)}
+        {tickPrice(row.price, tick)}
       </span>
-      <span className="num relative">{qty(row.qty, scale)}</span>
-      <span className="num relative text-muted">{qty(row.cum, scale)}</span>
+      <span className="num relative truncate">{qty(row.qty, scale)}</span>
+      <span className="num relative truncate text-muted">{qty(row.cum, scale)}</span>
     </button>
   );
 });
@@ -94,7 +96,7 @@ export function OrderBookPanel({ inst }: { inst: Instrument }) {
   const mid = bestBid && bestAsk ? (bestBid + bestAsk) / 2 : null;
 
   return (
-    <Card className="flex h-full min-h-0 flex-col">
+    <Card className="flex h-full min-h-0 flex-col overflow-hidden">
       <Tabs defaultValue="book" className="flex min-h-0 flex-1 flex-col">
         <CardHeader>
           <TabsList>
@@ -106,7 +108,7 @@ export function OrderBookPanel({ inst }: { inst: Instrument }) {
           </TabsList>
         </CardHeader>
         <TabsContent value="book" className="flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
-          <div className="grid grid-cols-3 px-3 py-1 text-right text-[10px] uppercase text-muted">
+          <div className="grid w-full grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 px-3 py-1 text-right text-[10px] uppercase text-muted">
             <span className="text-left">Price ₹</span>
             <span>Size</span>
             <span>Total</span>
@@ -127,6 +129,7 @@ export function OrderBookPanel({ inst }: { inst: Instrument }) {
                     side="ask"
                     max={max}
                     scale={inst.qtyScale}
+                    tick={inst.tickSizePaise}
                     mine={myPrices.has(r.price)}
                   />
                 ))}
@@ -153,6 +156,7 @@ export function OrderBookPanel({ inst }: { inst: Instrument }) {
                   side="bid"
                   max={max}
                   scale={inst.qtyScale}
+                  tick={inst.tickSizePaise}
                   mine={myPrices.has(r.price)}
                 />
               ))}
