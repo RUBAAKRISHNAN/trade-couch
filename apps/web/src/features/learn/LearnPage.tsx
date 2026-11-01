@@ -19,6 +19,8 @@ import { cn } from '@/lib/utils';
 import { useMarket } from '@/stores/market';
 import { positionFromRisk, simulateOrder } from './simulate';
 
+// TODO(me) [Phase 7 task, ~40 min]: add lesson 8 "Stop-market vs stop-limit": explain that a stop-limit may NOT
+//   fill if the price gaps past its limit (with a small example table), add it to LESSONS and render a <Lesson> for it.
 const LESSONS = [
   { id: 'book', title: 'The order book' },
   { id: 'orders', title: 'Order types — try one' },

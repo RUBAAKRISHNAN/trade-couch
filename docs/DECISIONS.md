@@ -81,3 +81,44 @@ The Kraken adapter stays (it works on other networks). Failover order: coinbase 
   (Fastify's 1 MB body limit; no unbounded arrays in our schemas). Fix = Zod 4 + fastify-type-provider-zod 7;
   planned as a dedicated upgrade.
 - `prisma` 6 CLI → `deepmerge-ts`: build-time code generation only, not reachable at runtime. Upgrade with Prisma 7.
+
+## D13 — Trade Coach reads settled trades, not settlement internals
+
+The coach is a separate worker job that replays `trades` per symbol in engine `seq` order (one settler per symbol
+commits batches in sequence, so seq order = visibility order). Its cursor, the open positions it tracks and the round
+trips it grades are written in **one transaction**, so each trade is coached exactly once and a crash just retries the
+batch. Settlement stays small and fast; coaching can lag a few seconds without affecting balances. A global trade-id
+cursor was rejected: ids are assigned at insert but committed later across symbols, so a reader could skip a trade.
+
+## D14 — Coach grades process, not outcome; size by risk to the stop
+
+Grades come from flags with fixed points (base 60, clamp 0–100: A ≥ 85 … F < 40). Profit is deliberately absent. With a
+planned stop, position size is judged by the % of equity lost if the stop is hit (≤ 1% small, > 2% large, > 5% very
+large) — the textbook "risk 1% per trade" rule, under which a 50% position with a 2% stop is fine. Without a stop the
+whole position is at risk, so its value is used (≤ 5% / > 10% / > 25%). The first version only used position value and
+graded a correct 1%-risk trade as "all-in"; writing the Learn page's sizing calculator exposed the contradiction.
+
+## D15 — Leaderboards from materialized views; admins and bots never rank
+
+`mv_portfolio_summary` (equity per human account) → `mv_leaderboard` (`RANK() OVER (PARTITION BY competition_id ORDER BY
+return)`), refreshed `CONCURRENTLY` every 10 s (needs a UNIQUE index; readers never block). Ranking by return % is fair
+because everyone in a group starts with the same cash. Staleness of ≤ 10 s is acceptable for a leaderboard and turns a
+per-request aggregation into an index lookup. Admin accounts are excluded (migration 0007, found by a test).
+
+## D16 — Demo data is labelled, never faked into the ledger
+
+Seeded coach history (`round_trips.source = 'seed'`) has no trades behind it and is shown as "Demo history"; it is graded
+by the same `recordTrip` code as live trips. Competition standings are never seeded: `npm run demo:traders` makes demo
+competitors place real orders through the normal path. Ledger invariants therefore always hold on seeded databases.
+
+## D17 — Halt/resume is an engine command
+
+Halting writes a `HALT` command to the symbol's stream instead of flipping a DB flag, so it is ordered with every other
+command: orders queued before the halt are processed, later ones are rejected by the engine itself. Settlement records
+the status from the engine's `HALTED` event. The API's 1-second instrument cache is invalidated on the node that sent
+the command; other nodes catch up within a second, and the engine rejects regardless.
+
+## D18 — Load accounts use the BOT role
+
+`npm run load:test` creates its users with role BOT, which keeps them out of leaderboards and the Trade Coach while still
+exercising the full order path. They remain in the dev database (they are real ledger participants).

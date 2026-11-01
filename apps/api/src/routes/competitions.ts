@@ -176,6 +176,9 @@ export const competitionRoutes: FastifyPluginAsyncZod = async (app) => {
   );
 };
 
+// TODO(me) [Phase 7 task, ~30 min]: support ?sort=process on both leaderboard routes — order by avg_process_score
+//   DESC (NULLs last) instead of rank, so a competition can also reward the best *habits*. Keep the RANK() column as is
+//   and add a test in apps/api/test/competitions.test.ts. Bonus: a toggle on the /compete page.
 async function leaderboard(pool: Pool, competitionId: number | null, limit: number, userId?: string) {
   const [top, me] = await Promise.all([
     pool.query(

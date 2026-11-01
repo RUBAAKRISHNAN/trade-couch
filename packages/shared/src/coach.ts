@@ -332,6 +332,9 @@ export function gradeTrip(f: TripFacts): TripGrade {
     f.entryNotional >= f.prevTrip.entryNotional * REVENGE_SIZE_RATIO
   )
     flags.push('REVENGE');
+  // TODO(me) [Phase 7 task, ~30 min]: add a 'QUICK_FLIP' habit — a round trip held under 1 minute (that's gambling
+  //   on noise, not a plan). Add it to the CoachFlag type and COACH_FLAGS (good: false, points -5, a label, explain,
+  //   tip, goal), push it here, and add a test in coach.test.ts that a 30-second trip gets it and a 5-minute one doesn't.
   if (f.tripsOpenedLastHour >= OVERTRADING_PER_HOUR) flags.push('OVERTRADING');
   if (f.pnl < 0 && f.medianWinHoldMinutes && holdMinutes > 2 * f.medianWinHoldMinutes)
     flags.push('HELD_LOSER');

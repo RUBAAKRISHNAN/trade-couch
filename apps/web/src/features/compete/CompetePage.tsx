@@ -92,7 +92,9 @@ function LeaderboardTable({ competitionId }: { competitionId: number | null }) {
                 </td>
                 <td className="px-3 py-2 font-medium">
                   {r.name} {me && <Badge variant="accent">You</Badge>}
-                  <span className="block text-[11px] font-normal text-muted">{r.roundTrips} round trips</span>
+                  <span className="block text-[11px] font-normal text-muted">
+                    {r.roundTrips} round trip{r.roundTrips === 1 ? '' : 's'}
+                  </span>
                 </td>
                 <td
                   className={cn(

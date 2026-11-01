@@ -128,3 +128,91 @@ a side at their limit. Liquidity = how much you can trade without moving the pri
 6. (P3) Why is the event offset updated in the _same_ transaction as the balances — what breaks if it's a separate step?
 7. (P4) Why do we cap a market order with a "protection price"?
 8. (P4) If a market maker keeps getting filled on its bids while the price falls, what happens to its inventory, and what does our bot do about it?
+
+---
+
+## Phase 5 + 6 — Candle history, equity snapshots, materialized views ✅
+
+Worker jobs roll trades up into `candles` (1m/5m/1h/1d) with window functions, take equity snapshots every 5 minutes,
+and refresh the leaderboard views every 10 s. All six instruments are live; the seed adds 14 days of candle history
+that ends exactly at today's price.
+
+## Phase 7 — Trade Coach, competitions, admin, learn ✅
+
+- **Trade Coach** (`packages/shared/src/coach.ts`, `apps/api/src/coach/coach.ts`, `/coach`): round trips, process grades
+  A–F, 13 flags, tips, weekly Skill Score, 6 badges.
+- **Competitions** (`/compete`): admin-created, fresh wallet per joiner, live leaderboard from `mv_leaderboard`, a
+  wallet switcher in the header; orders are refused outside the competition window.
+- **Admin** (`/admin`): health of every service, engine → settlement → coach lag per symbol, halt/resume through the
+  engine, bots, create competitions, run the ledger check.
+- **Learn** (`/learn`): 7 lessons on the live market with an order preview and a risk-based position-size calculator.
+- **Demo data**: Asha (disciplined), Rahul (impulsive, improving), Meera (mixed) with 2 weeks of graded history;
+  `npm run demo:traders` makes 8 demo competitors trade for real.
+
+## Phase 8 — Proof, tooling, docs ✅
+
+- `npm run load:test`: 245 orders/s at 100 users, ~285 orders/s ceiling at 300 users on this laptop; insert → settled
+  p50 19–28 ms; 0 lost; invariants hold.
+- Playwright e2e (5 tests, Edge locally), GitHub Actions CI (not yet run on GitHub — no remote), docker-compose
+  (untested here — Docker isn't installed), README, DATABASE, TRADING_BASICS, INTERVIEW_NOTES, DEPLOY.
+
+---
+
+# 🎓 Mentor notes (Phases 5–8)
+
+### Phase 5 + 6 — Materialized views and window functions
+
+**Engineering.** A leaderboard needs every account's equity — cash plus every holding at today's price — ranked. Doing
+that on every request means aggregating accounts × holdings × prices each time. A **materialized view** stores the result
+like a table; the worker refreshes it every 10 s. `REFRESH … CONCURRENTLY` builds the new version alongside the old one
+and swaps it in, so readers never wait — it needs a UNIQUE index to match old rows to new. Ranking uses a **window
+function**: `RANK() OVER (PARTITION BY competition_id ORDER BY return DESC)` ranks within each competition without
+collapsing rows like GROUP BY would. Candles use window functions too: `first_value(price)` is the open,
+`last_value(price)` the close, per time bucket. The trade-off is staleness — fine for a leaderboard, never for a balance.
+
+**Trading.** Ranking by **return %**, not rupees, is only fair because every competitor starts with the same cash —
+that's why each competition gets a fresh wallet.
+
+### Phase 7 — The Trade Coach
+
+**Engineering.** The coach is a separate consumer of settled trades, so settlement stays fast and coaching can't break
+balances. It replays trades per symbol in engine sequence order (one settler per symbol commits in order, so that order
+is also visibility order) and keeps each user's open position. Its cursor, positions and graded trips commit in **one
+transaction** — the same exactly-once pattern as settlement. The grading itself is a **pure function** (facts in, grade
+out), so it's trivial to unit-test and the same function grades live and demo trips.
+
+**Trading.** Grade the **process, not the outcome**. With a planned stop, size is judged by the money at risk if the stop
+is hit — risking 1% with a 2% stop allows a 50% position. Without a stop, the whole position is at risk. Revenge trading
+(bigger trade right after a loss), FOMO (buying a spike) and holding losers are how small losses become big ones.
+
+### Phase 8 — Measuring honestly
+
+**Engineering.** Two benchmarks answer two questions. The engine benchmark (423k commands/s) says "matching is not the
+problem". The load test says what the _system_ does: ~285 orders/s before the single API process saturates, while
+matching + settlement stay at ~20–30 ms. When throughput stops rising but latency climbs, you've found the bottleneck —
+requests are queueing. Volume also finds bugs that unit tests can't: at 60k orders a correlated subquery in the ledger
+check turned an instant query into a 2-minute one (fixed with a grouped join). Always state the machine and conditions
+next to a number.
+
+**Trading.** Liquidity has limits too: the bots quote finite size at each level, which is why large market orders slip.
+
+### 🛠️ Your new coding tasks (`TODO(me)` markers — say "review my task" when done)
+
+5. **Phase 7** — `packages/shared/src/coach.ts`: add a `QUICK_FLIP` habit (round trip held < 1 minute) + tests.
+6. **Phase 7** — `apps/api/src/routes/competitions.ts`: `?sort=process` leaderboard by average process score + a test.
+7. **Phase 7** — `apps/web/src/features/learn/LearnPage.tsx`: lesson 8 "Stop-market vs stop-limit".
+8. **Phase 8** — `e2e/tradecore.spec.ts`: an e2e test for the Learn page's risk calculator.
+
+(Tasks 1–4 from Phases 1–4 are still open, listed above.)
+
+### ❓ Quiz (Phases 5–8)
+
+9. (P5) Why does `REFRESH MATERIALIZED VIEW CONCURRENTLY` need a unique index, and what do readers see during it?
+10. (P6) What's the difference between `RANK()` and `ROW_NUMBER()` when two traders have the same return?
+11. (P7) Why can a losing trade earn an A? Give the flags it would need.
+12. (P7) The coach reads trades by engine `seq`, not by `trades.id`. What could go wrong with `id` across symbols?
+13. (P7) Risk 1% of ₹1,00,000 with entry ₹200 and stop ₹190. How many shares, and what % of your money is the position?
+14. (P8) In the load test, users went 100 → 300 and throughput only went 245 → 285 orders/s. What does that tell you, and
+    where would you look first?
+15. (P8) Why is BRIN a good fit for `trades.executed_at` but a bad fit for `trades.buyer_account_id`?
+16. (P8) Why do the CI tests use the simulated price feed instead of Coinbase?

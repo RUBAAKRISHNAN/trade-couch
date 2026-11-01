@@ -18,6 +18,7 @@
     "db:setup": "npm run db:create && npm run db:migrate && npm run db:migrate:test && npm run prisma:generate",
     "prisma:generate": "prisma generate --schema db/prisma/schema.prisma",
     "dev": "concurrently -k -n engine,api,worker,web -c magenta,cyan,yellow,green \"npm:dev -w @tradecore/engine\" \"npm:dev -w @tradecore/api\" \"npm:dev -w @tradecore/worker\" \"npm:dev -w @tradecore/web\"",
+    "start:prod": "concurrently -k -n engine,api,worker \"npm:start -w @tradecore/engine\" \"npm:start -w @tradecore/api\" \"npm:start -w @tradecore/worker\"",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -29,7 +30,8 @@
     "check:invariants": "tsx --env-file-if-exists=.env scripts/check-invariants.ts",
     "e2e": "playwright test",
     "clean": "rimraf \"**/dist\" \"**/.vite\"",
-    "smoke": "tsx --env-file-if-exists=.env scripts/smoke.ts"
+    "smoke": "tsx --env-file-if-exists=.env scripts/smoke.ts",
+    "screenshots": "tsx scripts/screenshots.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
