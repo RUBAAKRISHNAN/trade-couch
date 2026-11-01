@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   BarChart3,
@@ -102,6 +103,7 @@ export function AppShell() {
   const user = useAuth((s) => s.user);
   const { theme, toggleTheme } = useUi();
   const navigate = useNavigate();
+  const location = useLocation();
   const qc = useQueryClient();
 
   const logout = async () => {
@@ -181,7 +183,9 @@ export function AppShell() {
         <Disclaimer />
       </div>
       <main className="min-h-0 flex-1 overflow-auto">
-        <Outlet />
+        <ErrorBoundary resetKey={location.pathname}>
+          <Outlet />
+        </ErrorBoundary>
       </main>
       {/* mobile bottom navigation */}
       <nav className="grid shrink-0 grid-cols-5 border-t bg-panel md:hidden" aria-label="Main mobile">

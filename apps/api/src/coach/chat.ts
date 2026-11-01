@@ -77,7 +77,7 @@ export async function buildTraderContext(pool: Pool, accountId: number): Promise
       [accountId],
     ),
     pool.query(
-      `SELECT r.symbol, r.pnl_paise, r.opened_at, r.closed_at, r.source, r.plan_stop_paise, r.plan_target_paise,
+      `SELECT r.symbol, r.pnl_paise, r.opened_at, r.closed_at, r.source, r.plan_stop_paise, r.plan_target_paise, r.had_stop_order,
               r.entry_avg_paise, r.exit_avg_paise, c.grade, c.score, c.flags, c.details
        FROM round_trips r JOIN coach_reports c ON c.round_trip_id = r.id
        WHERE r.account_id = $1 ORDER BY r.closed_at DESC LIMIT 20`,
@@ -135,7 +135,7 @@ export async function buildTraderContext(pool: Pool, accountId: number): Promise
         plannedRR?: number | null;
       };
       lines.push(
-        `- ${t.symbol}${t.source === 'seed' ? ' (demo)' : ''} closed ${new Date(t.closed_at).toISOString().slice(0, 16).replace('T', ' ')} UTC: grade ${t.grade} (${t.score}/100), P&L ${fmtInr(t.pnl_paise)}, entry ${fmtInr(t.entry_avg_paise)} → exit ${fmtInr(t.exit_avg_paise)}, size ${d.sizePct ?? '?'}% of money, risk to stop ${d.riskPct ?? 'no planned stop'}${d.riskPct != null ? '%' : ''}, planned R:R ${d.plannedRR ?? 'none'}, held ${d.holdMinutes ?? '?'} min, flags [${(t.flags as string[]).join(', ')}]`,
+        `- ${t.symbol}${t.source === 'seed' ? ' (demo)' : ''} closed ${new Date(t.closed_at).toISOString().slice(0, 16).replace('T', ' ')} UTC: grade ${t.grade} (${t.score}/100), P&L ${fmtInr(t.pnl_paise)}, entry ${fmtInr(t.entry_avg_paise)} → exit ${fmtInr(t.exit_avg_paise)}, size ${d.sizePct ?? '?'}% of money, stop: ${t.plan_stop_paise ? `planned at ${fmtInr(t.plan_stop_paise)}` : 'no planned stop price'}${t.had_stop_order ? ', a stop-loss order was placed' : ', no stop-loss order'}, risk to the planned stop ${d.riskPct != null ? `${d.riskPct}% of money` : 'n/a'}, planned R:R ${d.plannedRR ?? 'none'}, held ${d.holdMinutes ?? '?'} min, flags [${(t.flags as string[]).join(', ')}]`,
       );
     }
   } else lines.push('No finished trades yet.');
@@ -186,41 +186,91 @@ export async function* parseGeminiSse(body: ReadableStream<Uint8Array>): AsyncIt
   }
 }
 
+/**
+ * Gemini over REST with streaming. Tries the models in order: if one doesn't start answering within
+ * `headerTimeoutMs`, or fails before sending any text with a retryable status (overloaded, quota, not available),
+ * the next model is tried. Once text has been sent, there's no switching (the user would see two answers).
+ */
 export class GeminiProvider implements ChatProvider {
   readonly name: string;
+  private readonly models: string[];
+  /** the model that answered last (for logs / status) */
+  lastModel: string | undefined;
+
   constructor(
     private apiKey: string,
-    private model: string,
+    models: string | string[],
     private fetchImpl: typeof fetch = fetch,
+    private opts: { headerTimeoutMs?: number; maxOutputTokens?: number } = {},
   ) {
-    this.name = `gemini:${model}`;
+    this.models = (Array.isArray(models) ? models : [models]).filter(Boolean);
+    if (!this.models.length) throw new Error('GeminiProvider needs at least one model');
+    this.name = `gemini:${this.models[0]}`;
+  }
+
+  private async open(model: string, system: string, messages: ChatMessage[], signal?: AbortSignal) {
+    // abort if the caller goes away, or if the model hasn't even sent response headers in time
+    const ctrl = new AbortController();
+    const onAbort = () => ctrl.abort();
+    signal?.addEventListener('abort', onAbort, { once: true });
+    const timer = setTimeout(
+      () => ctrl.abort(new GeminiError(504, `no response from ${model}`)),
+      this.opts.headerTimeoutMs ?? 20_000,
+    );
+    try {
+      const res = await this.fetchImpl(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`,
+        {
+          method: 'POST',
+          // the key goes in a header, not the URL, so it never ends up in request logs
+          headers: { 'content-type': 'application/json', 'x-goog-api-key': this.apiKey },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: system }] },
+            contents: messages.map((m) => ({ role: m.role, parts: [{ text: m.text }] })),
+            // newer models spend part of this budget on internal "thinking", so leave plenty of room
+            generationConfig: { temperature: 0.4, maxOutputTokens: this.opts.maxOutputTokens ?? 4096 },
+          }),
+          signal: ctrl.signal,
+        },
+      );
+      if (!res.ok || !res.body) {
+        let detail = '';
+        try {
+          detail = ((await res.json()) as { error?: { message?: string } }).error?.message ?? '';
+        } catch {
+          /* not JSON */
+        }
+        throw new GeminiError(res.status, detail);
+      }
+      return res.body;
+    } catch (e) {
+      if (signal?.aborted) throw e;
+      if (ctrl.signal.aborted) throw ctrl.signal.reason instanceof GeminiError ? ctrl.signal.reason : e;
+      throw e;
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+    }
   }
 
   async *stream(system: string, messages: ChatMessage[], signal?: AbortSignal): AsyncIterable<string> {
-    const res = await this.fetchImpl(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(this.model)}:streamGenerateContent?alt=sse`,
-      {
-        method: 'POST',
-        // the key goes in a header, not the URL, so it never ends up in request logs
-        headers: { 'content-type': 'application/json', 'x-goog-api-key': this.apiKey },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: system }] },
-          contents: messages.map((m) => ({ role: m.role, parts: [{ text: m.text }] })),
-          generationConfig: { temperature: 0.4, maxOutputTokens: 1200 },
-        }),
-        signal,
-      },
-    );
-    if (!res.ok || !res.body) {
-      let detail = '';
+    let lastError: unknown;
+    for (const model of this.models) {
+      let body: ReadableStream<Uint8Array>;
       try {
-        detail = ((await res.json()) as { error?: { message?: string } }).error?.message ?? '';
-      } catch {
-        /* not JSON */
+        body = await this.open(model, system, messages, signal);
+      } catch (e) {
+        if (signal?.aborted) throw e;
+        lastError = e;
+        // bad key / bad request won't get better with another model
+        if (e instanceof GeminiError && (e.status === 400 || e.status === 401 || e.status === 403)) throw e;
+        continue;
       }
-      throw new GeminiError(res.status, detail);
+      this.lastModel = model;
+      yield* parseGeminiSse(body);
+      return;
     }
-    yield* parseGeminiSse(res.body);
+    throw lastError instanceof Error ? lastError : new GeminiError(503, 'no model available');
   }
 }
 

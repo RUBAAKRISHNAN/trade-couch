@@ -99,8 +99,17 @@ export function CoachChat() {
   const abortRef = useRef<AbortController | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => endRef.current?.scrollIntoView({ block: 'nearest' }), [messages]);
-  useEffect(() => () => abortRef.current?.abort(), []);
+  // braces matter: newer browsers return a Promise from scrollIntoView, and an effect must return nothing
+  // (or a cleanup function) — returning the Promise made React crash the whole page
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [messages]);
+  useEffect(
+    () => () => {
+      abortRef.current?.abort();
+    },
+    [],
+  );
 
   const ask = async (question: string) => {
     const q = question.trim();

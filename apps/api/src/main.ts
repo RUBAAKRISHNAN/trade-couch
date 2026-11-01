@@ -17,7 +17,7 @@ const app = await buildApp(
     bus: new RedisCommandBus(redis),
     chat:
       config.aiProvider === 'gemini' && config.geminiApiKey
-        ? new GeminiProvider(config.geminiApiKey, config.geminiModel)
+        ? new GeminiProvider(config.geminiApiKey, config.geminiModels)
         : undefined,
   },
   {

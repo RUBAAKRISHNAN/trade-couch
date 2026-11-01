@@ -146,8 +146,8 @@ of logging in during normal browsing — worst in development, where every local
 
 ## D21 — AI coach chat (Google Gemini), grounded in the trader's own data
 
-`POST /api/coach/chat` streams (SSE) an answer from Gemini (`streamGenerateContent?alt=sse`, model from
-`GEMINI_MODEL`, default `gemini-3.8-flash`). The server builds a compact factual summary of the account — grades,
+`POST /api/coach/chat` streams (SSE) an answer from Gemini (`streamGenerateContent?alt=sse`, models tried in order: `GEMINI_MODEL`, then
+`GEMINI_FALLBACK_MODELS`, default `gemini-3.5-flash,gemini-2.5-flash`). The server builds a compact factual summary of the account — grades,
 habit counts, weekly Skill Scores, the last 20 round trips with size / risk / R:R / hold time, holdings — and attaches it
 to the first user message; the system prompt limits the model to process coaching from that data and forbids buy/sell
 calls, price predictions and invented numbers. No name, email or ids are sent. The key lives only in `.env` and is sent
@@ -164,3 +164,9 @@ The API test that proves logins get a 429 after 20 attempts used the same Redis 
 the dev app, so every `npm test` filled the running app's login bucket for a minute (and wiped its counters) — the
 "unexplained" 429s in the e2e tests. `buildApp` now takes `rateLimitNamespace`; the test uses its own prefix and
 deletes only its own keys.
+
+Measured on the dev key: `gemini-3.5-flash` streamed its first words after ~4 s, while `gemini-3.8-flash` and
+`gemini-3.5-flash-lite` (listed as available) sent no response at all within 40 s and `gemini-flash-latest` returned 503.
+So the provider tries models in order, moving on when one sends no headers within 20 s or fails with a retryable status
+before any text (a 400/401/403 stops immediately — a bad key fails on every model), and allows 4,096 output tokens
+because newer models spend part of the budget on internal thinking (1,200 cut a reply off mid-sentence).

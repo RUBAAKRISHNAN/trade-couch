@@ -46,7 +46,14 @@ export const config = {
   get geminiApiKey() {
     return process.env.GEMINI_API_KEY ?? '';
   },
-  get geminiModel() {
-    return process.env.GEMINI_MODEL ?? 'gemini-3.8-flash';
+  /** Models to try in order (the first that answers wins). GEMINI_MODEL goes first if set. */
+  get geminiModels() {
+    const list = [
+      process.env.GEMINI_MODEL,
+      ...(process.env.GEMINI_FALLBACK_MODELS ?? 'gemini-3.5-flash,gemini-2.5-flash').split(','),
+    ]
+      .map((m) => m?.trim())
+      .filter((m): m is string => !!m);
+    return [...new Set(list)];
   },
 };

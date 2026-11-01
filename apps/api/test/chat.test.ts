@@ -81,6 +81,46 @@ describe('Gemini streaming', () => {
   });
 });
 
+describe('Gemini model fallback', () => {
+  const urlsOf = (calls: string[]) => calls.map((u) => u.match(/models\/([^:]+):/)![1]);
+
+  it('moves to the next model when one never answers or is overloaded, and stops at a bad key', async () => {
+    const calls: string[] = [];
+    const fakeFetch = (async (url: string, init: RequestInit) => {
+      calls.push(url);
+      if (url.includes('/slow:'))
+        return new Promise((_, reject) =>
+          init.signal!.addEventListener('abort', () => reject(new Error('aborted'))),
+        );
+      if (url.includes('/busy:')) return new Response('{}', { status: 503 });
+      return new Response(streamOf([sseEvent('answer')]), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const g = new GeminiProvider('k', ['slow', 'busy', 'good'], fakeFetch, { headerTimeoutMs: 50 });
+    expect(await collect(g.stream('S', [{ role: 'user', text: 'x' }]))).toBe('answer');
+    expect(urlsOf(calls)).toEqual(['slow', 'busy', 'good']);
+    expect(g.lastModel).toBe('good');
+
+    // a rejected key won't work on any model: fail fast instead of trying them all
+    calls.length = 0;
+    const badKey = (async (url: string) => {
+      calls.push(url);
+      return new Response(JSON.stringify({ error: { message: 'API key not valid' } }), { status: 400 });
+    }) as unknown as typeof fetch;
+    await expect(
+      collect(new GeminiProvider('bad', ['a', 'b'], badKey).stream('S', [{ role: 'user', text: 'x' }])),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(urlsOf(calls)).toEqual(['a']);
+  });
+
+  it('reports the last failure when every model fails', async () => {
+    const busy = (async () => new Response('{}', { status: 503 })) as unknown as typeof fetch;
+    await expect(
+      collect(new GeminiProvider('k', ['a', 'b'], busy).stream('S', [{ role: 'user', text: 'x' }])),
+    ).rejects.toMatchObject({ status: 503 });
+  });
+});
+
 describe('coach chat (Postgres + API)', () => {
   const prisma = createPrisma('tradecore_test');
   const redis = new Redis(config.redisUrl);
