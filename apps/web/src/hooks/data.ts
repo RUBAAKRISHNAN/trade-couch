@@ -101,3 +101,11 @@ export function useSymbolStreams(symbol: string) {
     };
   }, [symbol]);
 }
+
+export function useCompetitions() {
+  return useQuery({
+    queryKey: ['competitions'],
+    queryFn: () => api<import('@/lib/types').Competition[]>('/competitions'),
+    refetchInterval: 30_000,
+  });
+}

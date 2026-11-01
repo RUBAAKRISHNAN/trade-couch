@@ -4,6 +4,7 @@ import { amendOrderSchema, placeOrderSchema } from '@tradecore/shared';
 import { requireAuth } from '../app';
 import { resolveAccount, userAccountIds } from '../lib/accounts';
 import { getInstrumentRow } from '../trading/instruments';
+import { assertCompetitionLive } from './competitions';
 import { placeOrder, requestAmend, requestCancel, type OrderRow } from '../trading/orders';
 
 const ordersLimit = { rateLimit: { max: 30, timeWindow: '10 seconds' } };
@@ -45,6 +46,7 @@ export const orderRoutes: FastifyPluginAsyncZod = async (app) => {
     { config: ordersLimit, schema: { tags: ['orders'], security: [{ bearer: [] }], body: placeOrderSchema } },
     async (req, reply) => {
       const accountId = await resolveAccount(pool, req.user!.id, req.body.competitionId);
+      if (req.body.competitionId) await assertCompetitionLive(pool, req.body.competitionId);
       const o = await placeOrder(pool, bus, accountId, req.body);
       reply.status(202); // accepted for matching; the outcome arrives via websocket / GET
       return orderView(o, (await getInstrumentRow(pool, o.symbol)).qty_scale);

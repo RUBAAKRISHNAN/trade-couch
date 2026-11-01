@@ -23,6 +23,7 @@ import { orderRoutes } from './routes/orders';
 import { portfolioRoutes } from './routes/portfolio';
 import { healthRoutes } from './routes/health';
 import { coachRoutes } from './routes/coach';
+import { competitionRoutes } from './routes/competitions';
 
 export async function buildApp(deps: AppDeps, opts: { logger?: boolean | object; rateLimit?: boolean } = {}) {
   const app = Fastify({
@@ -112,6 +113,7 @@ export async function buildApp(deps: AppDeps, opts: { logger?: boolean | object;
   await app.register(orderRoutes, { prefix: '/api/orders' });
   await app.register(portfolioRoutes, { prefix: '/api/portfolio' });
   await app.register(coachRoutes, { prefix: '/api/coach' });
+  await app.register(competitionRoutes, { prefix: '/api' });
   return app;
 }
 

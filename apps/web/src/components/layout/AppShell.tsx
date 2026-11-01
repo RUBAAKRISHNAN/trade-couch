@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -13,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge, Tip } from '@/components/ui/primitives';
+import { useCompetitions } from '@/hooks/data';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/stores/auth';
@@ -58,6 +60,41 @@ function ConnectionDot() {
         <span className="hidden sm:inline">{label}</span>
       </span>
     </Tip>
+  );
+}
+
+/** Which wallet the app trades with: the main practice wallet or a joined, live competition wallet. */
+function WalletSwitcher() {
+  const { competitionId, setCompetitionId } = useUi();
+  const comps = useCompetitions().data;
+  const joined = comps?.filter((c) => c.joined && c.status === 'LIVE') ?? [];
+  const qc = useQueryClient();
+  const stale = !!comps && !!competitionId && !joined.some((c) => c.id === competitionId);
+  // a competition that ended falls back to the practice wallet
+  useEffect(() => {
+    if (stale) setCompetitionId(null);
+  }, [stale, setCompetitionId]);
+  if (!joined.length) return null;
+  return (
+    <label className="flex items-center gap-1.5 text-xs text-muted">
+      <Wallet className="size-3.5" />
+      <span className="sr-only">Active wallet</span>
+      <select
+        value={competitionId ?? ''}
+        onChange={(e) => {
+          setCompetitionId(e.target.value ? Number(e.target.value) : null);
+          void qc.invalidateQueries();
+        }}
+        className="h-7 max-w-40 rounded-md border bg-panel-2 px-1.5 text-xs text-foreground"
+      >
+        <option value="">Practice wallet</option>
+        {joined.map((c) => (
+          <option key={c.id} value={c.id}>
+            🏆 {c.name}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
@@ -120,6 +157,7 @@ export function AppShell() {
           )}
         </nav>
         <div className="ml-auto flex items-center gap-2">
+          <WalletSwitcher />
           <ConnectionDot />
           <Button
             variant="ghost"

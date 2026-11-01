@@ -163,3 +163,37 @@ export interface CoachTrip {
     returnPct: number;
   };
 }
+
+export interface Competition {
+  id: number;
+  name: string;
+  slug: string;
+  description: string;
+  startsAt: string;
+  endsAt: string;
+  startingCash: number;
+  status: 'UPCOMING' | 'LIVE' | 'ENDED';
+  participants: number;
+  joined: boolean;
+  myRank: number | null;
+}
+
+export interface LeaderboardRow {
+  rank: number;
+  accountId: number;
+  userId: string;
+  name: string;
+  equity: number;
+  pnl: number;
+  returnPct: number;
+  roundTrips: number;
+  avgProcessScore: number | null;
+}
+
+export interface Leaderboard {
+  competitionId: number | null;
+  refreshedAt: string | null;
+  participants: number;
+  rows: LeaderboardRow[];
+  me: LeaderboardRow | null;
+}

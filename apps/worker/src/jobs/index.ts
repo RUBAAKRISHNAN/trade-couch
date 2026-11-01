@@ -7,6 +7,41 @@ const connection = { url: config.redisUrl, maxRetriesPerRequest: null };
 
 type Handler = (pool: Pool, log: Logger) => Promise<unknown>;
 
+const CANDLE_TFS: [tf: string, bucket: string, lookback: string][] = [
+  ['1m', '1 minute', '3 minutes'],
+  ['5m', '5 minutes', '10 minutes'],
+  ['1h', '1 hour', '1 hour'],
+  ['1d', '1 day', '1 day'],
+];
+
+/**
+ * OHLC with window functions: within each (symbol, bucket) ordered by time,
+ * first_value(price) is the open and last_value(price) (over the whole frame) is the close.
+ */
+export async function rollUpCandles(pool: Pool) {
+  let rows = 0;
+  for (const [tf, bucket, lookback] of CANDLE_TFS) {
+    const r = await pool.query(
+      `WITH x AS (
+         SELECT symbol, date_bin($2::interval, executed_at, timestamptz '2000-01-01') AS bucket, price_paise, qty_units,
+                first_value(price_paise) OVER w AS o,
+                last_value(price_paise) OVER (w ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS c
+         FROM trades
+         WHERE executed_at >= date_bin($2::interval, now() - $3::interval, timestamptz '2000-01-01')
+         WINDOW w AS (PARTITION BY symbol, date_bin($2::interval, executed_at, timestamptz '2000-01-01') ORDER BY executed_at, id))
+       INSERT INTO candles (symbol, timeframe, bucket_start, open_paise, high_paise, low_paise, close_paise, volume_units, trade_count)
+       SELECT symbol, $1, bucket, min(o), max(price_paise), min(price_paise), min(c), sum(qty_units), count(*)
+       FROM x GROUP BY symbol, bucket
+       ON CONFLICT (symbol, timeframe, bucket_start) DO UPDATE SET
+         open_paise = EXCLUDED.open_paise, high_paise = EXCLUDED.high_paise, low_paise = EXCLUDED.low_paise,
+         close_paise = EXCLUDED.close_paise, volume_units = EXCLUDED.volume_units, trade_count = EXCLUDED.trade_count`,
+      [tf, bucket, lookback],
+    );
+    rows += r.rowCount ?? 0;
+  }
+  return rows;
+}
+
 /**
  * Scheduled maintenance jobs. BullMQ stores schedules in Redis, so with several worker processes each
  * job still runs once per interval (and retries if a run fails).
@@ -21,6 +56,31 @@ export const JOBS: Record<string, { everyMs: number; run: Handler }> = {
           `SELECT ensure_daily_partitions('trades', current_date, 8) AS a, ensure_daily_partitions('order_events', current_date, 8) AS b`,
         )
       ).rows[0],
+  },
+  // Leaderboards: CONCURRENTLY keeps the views readable during the refresh (needs their UNIQUE indexes).
+  // Order matters: mv_leaderboard is built from mv_portfolio_summary.
+  'refresh-leaderboards': {
+    everyMs: 10_000,
+    run: async (pool) => {
+      await pool.query('REFRESH MATERIALIZED VIEW CONCURRENTLY mv_portfolio_summary');
+      await pool.query('REFRESH MATERIALIZED VIEW CONCURRENTLY mv_leaderboard');
+      return 'ok';
+    },
+  },
+  // Candles: roll recent trades up into the candles table for every timeframe. Each lookback starts on a
+  // bucket boundary, so the current bucket is always recomputed whole (idempotent upsert).
+  'roll-up-candles': { everyMs: 30_000, run: (pool) => rollUpCandles(pool) },
+  // Equity curve + drawdown: one sample per human account every 5 minutes.
+  'equity-snapshots': {
+    everyMs: 5 * 60_000,
+    run: async (pool) =>
+      (
+        await pool.query(
+          `INSERT INTO equity_snapshots (account_id, ts, equity_paise, cash_paise)
+           SELECT account_id, date_trunc('minute', now()), equity_paise, cash_paise FROM mv_portfolio_summary
+           ON CONFLICT DO NOTHING`,
+        )
+      ).rowCount,
   },
   // Trade Coach: turn newly settled trades into graded round trips, weekly skill scores and badges.
   coach: { everyMs: 10_000, run: (pool) => runCoach(pool) },
