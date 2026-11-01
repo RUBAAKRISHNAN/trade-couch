@@ -58,23 +58,31 @@ export const coachRoutes: FastifyPluginAsyncZod = async (app) => {
       });
       const send = (o: object) => reply.raw.write(`data: ${JSON.stringify(o)}\n\n`);
       try {
+        const errText = (e: unknown) => (e instanceof GeminiError ? e.message : String(e));
         for await (const text of chat.stream(
           COACH_SYSTEM_PROMPT,
           buildChatRequest(context, req.body.messages),
           abort.signal,
+          (model, e) =>
+            req.log.warn({ model, err: errText(e) }, 'coach chat: model failed, trying the next one'),
         ))
           send({ text });
         send({ done: true });
       } catch (e) {
         if (!abort.signal.aborted) {
           req.log.warn({ err: e instanceof GeminiError ? e.message : String(e) }, 'coach chat failed');
+          const status = e instanceof GeminiError ? e.status : 0;
           send({
             error:
-              e instanceof GeminiError && (e.status === 401 || e.status === 403 || e.status === 400)
-                ? 'The AI service rejected the request — check GEMINI_API_KEY and GEMINI_MODEL in .env.'
-                : e instanceof GeminiError && e.status === 429
-                  ? 'The AI service is busy or your free quota is used up. Try again in a minute.'
-                  : 'The AI coach could not answer right now. Please try again.',
+              status === 400 || status === 401 || status === 403
+                ? 'The AI service rejected the request — check GEMINI_API_KEY in .env.'
+                : status === 429
+                  ? 'Google’s free quota is used up for now. Wait a minute and try again.'
+                  : status === 404
+                    ? 'The configured Gemini models aren’t available for this key — check GEMINI_MODEL in .env.'
+                    : status === 503 || status === 504
+                      ? 'Google’s AI service is busy right now. Try again in a moment.'
+                      : 'The AI coach could not answer right now. Please try again.',
           });
         }
       } finally {

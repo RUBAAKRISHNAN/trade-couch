@@ -147,7 +147,7 @@ of logging in during normal browsing — worst in development, where every local
 ## D21 — AI coach chat (Google Gemini), grounded in the trader's own data
 
 `POST /api/coach/chat` streams (SSE) an answer from Gemini (`streamGenerateContent?alt=sse`, models tried in order: `GEMINI_MODEL`, then
-`GEMINI_FALLBACK_MODELS`, default `gemini-3.5-flash,gemini-2.5-flash`). The server builds a compact factual summary of the account — grades,
+`GEMINI_FALLBACK_MODELS`, default `gemini-3.5-flash,gemini-3.6-flash,gemini-3.1-flash-lite`; `gemini-2.5-flash` returned 404 "no longer available to new users"). The server builds a compact factual summary of the account — grades,
 habit counts, weekly Skill Scores, the last 20 round trips with size / risk / R:R / hold time, holdings — and attaches it
 to the first user message; the system prompt limits the model to process coaching from that data and forbids buy/sell
 calls, price predictions and invented numbers. No name, email or ids are sent. The key lives only in `.env` and is sent

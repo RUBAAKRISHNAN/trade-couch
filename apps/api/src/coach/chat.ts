@@ -18,7 +18,13 @@ export interface ChatMessage {
 /** A streaming chat model. Gemini in production; a fake in tests. */
 export interface ChatProvider {
   readonly name: string;
-  stream(system: string, messages: ChatMessage[], signal?: AbortSignal): AsyncIterable<string>;
+  stream(
+    system: string,
+    messages: ChatMessage[],
+    signal?: AbortSignal,
+    /** called when one model fails and the next is tried (for logs) */
+    onFallback?: (model: string, error: unknown) => void,
+  ): AsyncIterable<string>;
 }
 
 export const COACH_SYSTEM_PROMPT = `You are the Trade Coach inside TradeCore, a trading SIMULATOR that uses virtual money for learning.
@@ -253,7 +259,12 @@ export class GeminiProvider implements ChatProvider {
     }
   }
 
-  async *stream(system: string, messages: ChatMessage[], signal?: AbortSignal): AsyncIterable<string> {
+  async *stream(
+    system: string,
+    messages: ChatMessage[],
+    signal?: AbortSignal,
+    onFallback?: (model: string, error: unknown) => void,
+  ): AsyncIterable<string> {
     let lastError: unknown;
     for (const model of this.models) {
       let body: ReadableStream<Uint8Array>;
@@ -264,6 +275,7 @@ export class GeminiProvider implements ChatProvider {
         lastError = e;
         // bad key / bad request won't get better with another model
         if (e instanceof GeminiError && (e.status === 400 || e.status === 401 || e.status === 403)) throw e;
+        onFallback?.(model, e);
         continue;
       }
       this.lastModel = model;

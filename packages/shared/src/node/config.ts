@@ -50,7 +50,9 @@ export const config = {
   get geminiModels() {
     const list = [
       process.env.GEMINI_MODEL,
-      ...(process.env.GEMINI_FALLBACK_MODELS ?? 'gemini-3.5-flash,gemini-2.5-flash').split(','),
+      ...(
+        process.env.GEMINI_FALLBACK_MODELS ?? 'gemini-3.5-flash,gemini-3.6-flash,gemini-3.1-flash-lite'
+      ).split(','),
     ]
       .map((m) => m?.trim())
       .filter((m): m is string => !!m);
