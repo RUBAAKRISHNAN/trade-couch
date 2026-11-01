@@ -4,38 +4,46 @@
 
 /* Light theme tokens */
 :root {
-  --background: #f6f7fb;
+  --background: #f4f6fc;
   --panel: #ffffff;
-  --panel-2: #f0f2f7;
-  --border: #e2e6ef;
-  --foreground: #121620;
-  --muted: #5d6679;
-  --accent: #4f46e5;
+  --panel-2: #eef1f8;
+  --border: #e1e6f2;
+  --foreground: #10142a;
+  --muted: #5f6886;
+  --accent: #6d4aff;
+  --accent-2: #0891b2;
   --accent-foreground: #ffffff;
-  --buy: #0ea371;
-  --buy-soft: rgba(14, 163, 113, 0.12);
-  --sell: #e0364a;
-  --sell-soft: rgba(224, 54, 74, 0.12);
-  --warn: #c07a00;
-  --ring: #4f46e5;
+  --buy: #0ca678;
+  --buy-soft: rgba(12, 166, 120, 0.12);
+  --sell: #e8365d;
+  --sell-soft: rgba(232, 54, 93, 0.11);
+  --warn: #c27c0e;
+  --ring: #6d4aff;
+  --glow-1: rgba(109, 74, 255, 0.1);
+  --glow-2: rgba(8, 145, 178, 0.08);
+  --shadow: 0 1px 2px rgba(16, 20, 42, 0.04), 0 8px 24px -12px rgba(16, 20, 42, 0.12);
 }
 
-/* Dark theme (default) */
+/* Dark theme (default): midnight with a violet → cyan accent */
 .dark {
-  --background: #0b0e14;
-  --panel: #11151d;
-  --panel-2: #171c26;
-  --border: #222938;
-  --foreground: #e7eaf0;
-  --muted: #8a93a6;
-  --accent: #7c74ff;
-  --accent-foreground: #0b0e14;
-  --buy: #16c784;
-  --buy-soft: rgba(22, 199, 132, 0.14);
-  --sell: #f0465a;
-  --sell-soft: rgba(240, 70, 90, 0.14);
-  --warn: #f5b041;
-  --ring: #7c74ff;
+  --background: #070a14;
+  --panel: #0f1424;
+  --panel-2: #161d33;
+  --border: #1f2742;
+  --foreground: #eef1fa;
+  --muted: #8c96b2;
+  --accent: #8b6cff;
+  --accent-2: #22d3ee;
+  --accent-foreground: #ffffff;
+  --buy: #19d39a;
+  --buy-soft: rgba(25, 211, 154, 0.13);
+  --sell: #ff4d6d;
+  --sell-soft: rgba(255, 77, 109, 0.13);
+  --warn: #fbbf24;
+  --ring: #8b6cff;
+  --glow-1: rgba(139, 108, 255, 0.16);
+  --glow-2: rgba(34, 211, 238, 0.09);
+  --shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 12px 32px -16px rgba(0, 0, 0, 0.6);
 }
 
 @theme inline {
@@ -47,6 +55,7 @@
   --color-muted: var(--muted);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-accent-2: var(--accent-2);
   --color-buy: var(--buy);
   --color-buy-soft: var(--buy-soft);
   --color-sell: var(--sell);
@@ -67,7 +76,11 @@
     height: 100%;
   }
   body {
-    background: var(--background);
+    /* soft violet and cyan glows behind everything */
+    background:
+      radial-gradient(1200px 600px at 10% -10%, var(--glow-1), transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, var(--glow-2), transparent 55%), var(--background);
+    background-attachment: fixed;
     color: var(--foreground);
     font-family: var(--font-sans);
     font-feature-settings: 'cv11', 'ss01';
@@ -77,6 +90,44 @@
     outline: 2px solid var(--ring);
     outline-offset: 2px;
   }
+}
+
+/* brand gradient (violet → cyan) for primary actions, active nav and highlights */
+.bg-brand {
+  background-image: linear-gradient(120deg, var(--accent) 0%, var(--accent-2) 100%);
+}
+.text-brand {
+  background-image: linear-gradient(120deg, var(--accent) 0%, var(--accent-2) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.shadow-card {
+  box-shadow: var(--shadow);
+}
+
+/* AI coach panel slides in from the right */
+@keyframes sheet-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes sheet-out {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+.coach-sheet[data-state='open'] {
+  animation: sheet-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.coach-sheet[data-state='closed'] {
+  animation: sheet-out 0.2s ease-in;
 }
 
 /* numbers line up in columns */
@@ -117,6 +168,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .coach-sheet[data-state],
   .flash-up,
   .flash-down {
     animation: none;

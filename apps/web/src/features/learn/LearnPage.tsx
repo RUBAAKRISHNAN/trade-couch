@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { BookOpen, ChevronRight } from 'lucide-react';
 import { Disclaimer } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/layout/PageHeader';
 import {
   Card,
   CardContent,
@@ -311,30 +312,29 @@ export default function LearnPage() {
   useSymbolStreams(inst?.symbol ?? symbol);
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mx-auto max-w-6xl p-3">
-      <div className="mb-3 flex flex-wrap items-start gap-3">
-        <BookOpen className="mt-1 size-6 text-accent" />
-        <div className="min-w-0 flex-1">
-          <h1 className="text-lg font-semibold">Learn how a market works</h1>
-          <p className="text-sm text-muted">
-            Seven short lessons, using TradeCore’s live market. You don’t need to know anything about trading
-            to start.
-          </p>
-        </div>
-        <label className="flex items-center gap-2 text-sm">
-          <span className="text-muted">Live market:</span>
-          <select
-            value={inst?.symbol ?? symbol}
-            onChange={(e) => setSymbol(e.target.value)}
-            className="h-8 rounded-md border bg-panel-2 px-2 text-sm"
-          >
-            {instruments.map((i) => (
-              <option key={i.symbol} value={i.symbol}>
-                {i.name}
-              </option>
-            ))}
-          </select>
-        </label>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mx-auto max-w-6xl p-4 sm:p-6">
+      <div className="mb-4">
+        <PageHeader
+          icon={BookOpen}
+          title="Learn how a market works"
+          subtitle="7 short lessons on the live market — no experience needed."
+          actions={
+            <label className="flex items-center gap-2 text-sm">
+              <span className="text-muted">Market</span>
+              <select
+                value={inst?.symbol ?? symbol}
+                onChange={(e) => setSymbol(e.target.value)}
+                className="h-9 rounded-lg border bg-panel-2 px-2 text-sm"
+              >
+                {instruments.map((i) => (
+                  <option key={i.symbol} value={i.symbol}>
+                    {i.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          }
+        />
       </div>
 
       <div className="grid gap-3 lg:grid-cols-[200px_minmax(0,1fr)]">

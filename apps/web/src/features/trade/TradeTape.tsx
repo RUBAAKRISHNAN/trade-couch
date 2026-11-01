@@ -20,7 +20,6 @@ export function TradeTape({ inst, bare }: { inst: Instrument; bare?: boolean }) 
           {tape.slice(0, 50).map((t) => (
             <motion.div
               key={t.seq}
-              layout="position"
               initial={{
                 opacity: 0,
                 backgroundColor: t.side === 'BUY' ? 'var(--buy-soft)' : 'var(--sell-soft)',

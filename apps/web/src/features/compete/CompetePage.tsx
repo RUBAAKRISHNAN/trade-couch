@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { CalendarClock, Crown, Medal, Trophy, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { Badge, Card, CardContent, CardHeader, CardTitle, Skeleton, Tip } from '@/components/ui/primitives';
 import { useCompetitions } from '@/hooks/data';
 import { api, ApiError } from '@/lib/api';
@@ -153,17 +154,16 @@ export default function CompetePage() {
   const shownComp = comps?.find((c) => c.id === shown);
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mx-auto max-w-6xl space-y-3 p-3">
-      <div className="flex items-start gap-3">
-        <Trophy className="mt-1 size-6 text-warn" />
-        <div>
-          <h1 className="text-lg font-semibold">Competitions</h1>
-          <p className="text-sm text-muted">
-            Each competition gives everyone a fresh wallet with the same virtual cash, so it’s a fair race.
-            Rankings are by return and refresh every few seconds.
-          </p>
-        </div>
-      </div>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="mx-auto max-w-6xl space-y-4 p-4 sm:p-6"
+    >
+      <PageHeader
+        icon={Trophy}
+        title="Competitions"
+        subtitle="Same cash for everyone. Highest return wins."
+      />
 
       <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
         <div className="space-y-2">

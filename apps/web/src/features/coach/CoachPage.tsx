@@ -12,6 +12,7 @@ import {
   Lightbulb,
   Scale,
   Shield,
+  Sparkles,
   Star,
   Target,
   Trophy,
@@ -19,6 +20,7 @@ import {
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { COACH_FLAGS, type CoachFlag } from '@tradecore/shared';
 import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { Badge, Card, CardContent, CardHeader, CardTitle, Skeleton, Tip } from '@/components/ui/primitives';
 import { useAccountContext, withAccount } from '@/hooks/data';
 import { api, ApiError } from '@/lib/api';
@@ -26,7 +28,7 @@ import { baseAsset, pct, price, qty, signedInr } from '@/lib/format';
 import type { CoachSummary, CoachTrip } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/stores/auth';
-import { CoachChat } from './CoachChat';
+import { useUi } from '@/stores/ui';
 
 const GRADE_STYLE: Record<CoachTrip['grade'], string> = {
   A: 'bg-buy text-white dark:text-[#06140e]',
@@ -275,18 +277,25 @@ export default function CoachPage() {
   const badFlags = s.flags.filter((f) => flagInfo(f.flag) && !flagInfo(f.flag)!.good);
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mx-auto max-w-6xl space-y-3 p-3">
-      <div className="flex items-start gap-3">
-        <GraduationCap className="mt-1 size-6 text-accent" />
-        <div>
-          <h1 className="text-lg font-semibold">Trade Coach</h1>
-          <p className="text-sm text-muted">
-            The coach grades <strong className="text-foreground">how</strong> you traded — risk, plan and
-            habits — not whether you made money. A disciplined loss can earn an A; a lucky win with no stop
-            earns an F.
-          </p>
-        </div>
-      </div>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="mx-auto max-w-6xl space-y-4 p-4 sm:p-6"
+    >
+      <PageHeader
+        icon={GraduationCap}
+        title="Trade Coach"
+        subtitle={
+          <Tip content="A disciplined loss can earn an A; a lucky win with no stop-loss earns an F.">
+            <span className="cursor-help">Grades how you trade — not your luck.</span>
+          </Tip>
+        }
+        actions={
+          <Button onClick={() => useUi.getState().setCoachOpen(true)}>
+            <Sparkles /> Ask AI Coach
+          </Button>
+        }
+      />
 
       <div className="grid gap-3 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
         <Card>
@@ -387,8 +396,6 @@ export default function CoachPage() {
           tip="The biggest drop from a high point in your equity this week."
         />
       </div>
-
-      <CoachChat />
 
       <div className="grid gap-3 md:grid-cols-3">
         <Card>

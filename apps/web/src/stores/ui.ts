@@ -30,6 +30,9 @@ interface UiState {
   /** which wallet the app acts on: null = main practice account, otherwise a competition's account */
   competitionId: number | null;
   setCompetitionId: (id: number | null) => void;
+  /** the AI coach slide-in panel */
+  coachOpen: boolean;
+  setCoachOpen: (open: boolean) => void;
   setPrefill: (price: number) => void;
   toggleTheme: () => void;
   setSymbol: (s: string) => void;
@@ -42,6 +45,8 @@ export const useUi = create<UiState>((set, get) => ({
   side: 'BUY',
   orderFocusTick: 0,
   prefill: null,
+  coachOpen: false,
+  setCoachOpen: (coachOpen) => set({ coachOpen }),
   competitionId: readCompetition(),
   setCompetitionId: (competitionId) => {
     try {

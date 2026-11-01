@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Activity, CheckCircle2, Pause, Play, ShieldCheck, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
 import {
   Badge,
@@ -467,16 +468,20 @@ export default function AdminPage() {
   if (role && role !== 'ADMIN') return <Navigate to="/trade" replace />;
   const o = overview.data;
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mx-auto max-w-7xl space-y-3 p-3">
-      <div className="flex items-center gap-2">
-        <Activity className="size-5 text-accent" />
-        <h1 className="text-lg font-semibold">Admin · system health</h1>
-        {o?.counts.leaderboard_refreshed_at && (
-          <span className="ml-auto text-xs text-muted">
-            leaderboards refreshed {new Date(o.counts.leaderboard_refreshed_at).toLocaleTimeString('en-IN')}
-          </span>
-        )}
-      </div>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="mx-auto max-w-7xl space-y-4 p-4 sm:p-6"
+    >
+      <PageHeader
+        icon={Activity}
+        title="System health"
+        subtitle={
+          o?.counts.leaderboard_refreshed_at
+            ? `Live · leaderboards refreshed ${new Date(o.counts.leaderboard_refreshed_at).toLocaleTimeString('en-IN')}`
+            : 'Live view of every service'
+        }
+      />
       {!o ? (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {Array.from({ length: 4 }, (_, i) => (

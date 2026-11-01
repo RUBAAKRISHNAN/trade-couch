@@ -1,12 +1,13 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Bot, KeyRound, Send, Sparkles, Square, User } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/primitives';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { ArrowUp, KeyRound, RotateCcw, Sparkles, Square, X } from 'lucide-react';
+import { create } from 'zustand';
 import { useAccountContext } from '@/hooks/data';
 import { api, ApiError, apiStream } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/stores/auth';
+import { useUi } from '@/stores/ui';
 
 interface Msg {
   role: 'user' | 'model';
@@ -15,12 +16,29 @@ interface Msg {
 }
 
 const SUGGESTIONS = [
-  'How am I doing overall?',
-  'Where am I losing money, and why?',
-  'What am I good at?',
-  'What are the 3 most important things to improve this week?',
-  'Explain my last trade',
+  { label: 'How am I doing?', q: 'How am I doing overall?' },
+  { label: 'Where do I lose money?', q: 'Where am I losing money, and why?' },
+  { label: 'What am I good at?', q: 'What am I good at?' },
+  { label: 'Top 3 things to improve', q: 'What are the 3 most important things to improve this week?' },
+  { label: 'Explain my last trade', q: 'Explain my last trade' },
 ];
+
+/** The conversation lives outside the panel, so closing it or changing page doesn't lose it. */
+interface ChatState {
+  messages: Msg[];
+  busy: boolean;
+  abort: AbortController | null;
+  set: (p: Partial<Omit<ChatState, 'set'>>) => void;
+  patchLast: (fn: (m: Msg) => Msg) => void;
+}
+const useChat = create<ChatState>((set) => ({
+  messages: [],
+  busy: false,
+  abort: null,
+  set: (p) => set(p),
+  patchLast: (fn) =>
+    set((s) => ({ messages: [...s.messages.slice(0, -1), fn(s.messages[s.messages.length - 1]!)] })),
+}));
 
 /** Bold (**x**) inside a line, rendered as React nodes: no HTML injection. */
 function inline(text: string): ReactNode[] {
@@ -35,7 +53,7 @@ function inline(text: string): ReactNode[] {
   );
 }
 
-/** A small, safe Markdown subset: paragraphs, headings (#), bullet (- / *) and numbered lists, bold. */
+/** A small, safe Markdown subset: paragraphs, headings (#), bullet (- / *) and numbered lists, rules, bold. */
 export function RichText({ text }: { text: string }) {
   const blocks: ReactNode[] = [];
   let list: { ordered: boolean; items: string[] } | null = null;
@@ -45,7 +63,10 @@ export function RichText({ text }: { text: string }) {
     blocks.push(
       <Tag
         key={blocks.length}
-        className={cn('my-1 space-y-0.5 pl-5', list.ordered ? 'list-decimal' : 'list-disc')}
+        className={cn(
+          'my-1.5 space-y-1 pl-5 marker:text-accent',
+          list.ordered ? 'list-decimal' : 'list-disc',
+        )}
       >
         {list.items.map((it, i) => (
           <li key={i}>{inline(it)}</li>
@@ -56,6 +77,11 @@ export function RichText({ text }: { text: string }) {
   };
   for (const raw of text.split('\n')) {
     const line = raw.trimEnd();
+    if (/^\s*(-{3,}|\*{3,})\s*$/.test(line)) {
+      flush();
+      blocks.push(<hr key={blocks.length} className="my-2 border-border" />);
+      continue;
+    }
     const bullet = line.match(/^\s*[-*•]\s+(.*)$/);
     const numbered = line.match(/^\s*\d+[.)]\s+(.*)$/);
     const heading = line.match(/^#{1,4}\s+(.*)$/);
@@ -69,13 +95,13 @@ export function RichText({ text }: { text: string }) {
     flush();
     if (heading)
       blocks.push(
-        <p key={blocks.length} className="mt-2 font-semibold text-foreground">
+        <p key={blocks.length} className="mt-3 mb-1 text-[13px] font-semibold text-foreground">
           {inline(heading[1]!)}
         </p>,
       );
     else if (line.trim())
       blocks.push(
-        <p key={blocks.length} className="my-1">
+        <p key={blocks.length} className="my-1.5">
           {inline(line)}
         </p>,
       );
@@ -84,45 +110,57 @@ export function RichText({ text }: { text: string }) {
   return <>{blocks}</>;
 }
 
-export function CoachChat() {
+function useChatStatus() {
   const authed = useAuth((s) => !!s.accessToken);
-  const competitionId = useAccountContext();
-  const status = useQuery({
+  return useQuery({
     queryKey: ['coach', 'chat-status'],
     queryFn: () => api<{ enabled: boolean; model: string | null }>('/coach/chat/status'),
     enabled: authed,
     staleTime: 60_000,
   });
-  const [messages, setMessages] = useState<Msg[]>([]);
+}
+
+function Thinking() {
+  return (
+    <span className="inline-flex gap-1 py-1" aria-label="Coach is thinking">
+      <span className="size-1.5 animate-bounce rounded-full bg-accent" />
+      <span className="size-1.5 animate-bounce rounded-full bg-accent [animation-delay:120ms]" />
+      <span className="size-1.5 animate-bounce rounded-full bg-accent [animation-delay:240ms]" />
+    </span>
+  );
+}
+
+/** The chat itself: fills its container, messages scroll, the composer stays at the bottom. */
+export function CoachChat() {
+  const competitionId = useAccountContext();
+  const status = useChatStatus();
+  const { messages, busy } = useChat();
   const [input, setInput] = useState('');
-  const [busy, setBusy] = useState(false);
-  const abortRef = useRef<AbortController | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // braces matter: newer browsers return a Promise from scrollIntoView, and an effect must return nothing
   // (or a cleanup function) — returning the Promise made React crash the whole page
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: 'nearest' });
+    endRef.current?.scrollIntoView({ block: 'end' });
   }, [messages]);
-  useEffect(
-    () => () => {
-      abortRef.current?.abort();
-    },
-    [],
-  );
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   const ask = async (question: string) => {
     const q = question.trim();
-    if (!q || busy) return;
-    // send the conversation so far (without failed replies), newest 19 turns + the question
-    const history = messages.filter((m) => !m.error).slice(-19);
-    const next: Msg[] = [...messages, { role: 'user', text: q }, { role: 'model', text: '' }];
-    setMessages(next);
-    setInput('');
-    setBusy(true);
+    const st = useChat.getState();
+    if (!q || st.busy) return;
+    const history = st.messages.filter((m) => !m.error).slice(-19);
     const ctrl = new AbortController();
-    abortRef.current = ctrl;
-    const patch = (fn: (m: Msg) => Msg) => setMessages((ms) => [...ms.slice(0, -1), fn(ms[ms.length - 1]!)]);
+    st.set({
+      messages: [...st.messages, { role: 'user', text: q }, { role: 'model', text: '' }],
+      busy: true,
+      abort: ctrl,
+    });
+    setInput('');
+    const { patchLast } = useChat.getState();
     try {
       await apiStream(
         '/coach/chat',
@@ -131,137 +169,116 @@ export function CoachChat() {
           ...(competitionId ? { competitionId } : {}),
         },
         (e) => {
-          if (typeof e.text === 'string') patch((m) => ({ ...m, text: m.text + e.text }));
-          if (typeof e.error === 'string') patch((m) => ({ ...m, text: e.error as string, error: true }));
+          if (typeof e.text === 'string') patchLast((m) => ({ ...m, text: m.text + e.text }));
+          if (typeof e.error === 'string') patchLast((m) => ({ ...m, text: e.error as string, error: true }));
         },
         ctrl.signal,
       );
     } catch (e) {
       if (!ctrl.signal.aborted)
-        patch((m) => ({
+        patchLast((m) => ({
           ...m,
           error: true,
           text: e instanceof ApiError ? e.message : 'Could not reach the coach. Check your connection.',
         }));
     } finally {
-      setBusy(false);
-      abortRef.current = null;
-      patch((m) => (m.text ? m : { ...m, text: 'Stopped.', error: true }));
+      useChat.getState().set({ busy: false, abort: null });
+      patchLast((m) => (m.text ? m : { ...m, text: 'Stopped.', error: true }));
     }
   };
 
   if (status.data && !status.data.enabled)
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Sparkles className="size-4 text-accent" /> Ask your AI coach
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <p className="flex items-center gap-2 font-medium">
-            <KeyRound className="size-4 text-warn" /> The AI coach isn’t set up yet.
-          </p>
-          <ol className="list-decimal space-y-1 pl-5 text-muted">
-            <li>
-              Create a free API key at <span className="font-mono text-foreground">aistudio.google.com</span>{' '}
-              → “Get API key”.
-            </li>
-            <li>
-              Add it to the project’s <span className="font-mono text-foreground">.env</span> file as{' '}
-              <span className="font-mono text-foreground">GEMINI_API_KEY=…</span>
-            </li>
-            <li>
-              Restart the app (<span className="font-mono text-foreground">npm run dev</span>).
-            </li>
-          </ol>
-        </CardContent>
-      </Card>
+      <div className="space-y-3 p-5 text-sm">
+        <p className="flex items-center gap-2 font-medium">
+          <KeyRound className="size-4 text-warn" /> AI coach isn’t set up yet
+        </p>
+        <ol className="list-decimal space-y-1.5 pl-5 text-muted">
+          <li>
+            Get a free key at <span className="font-mono text-foreground">aistudio.google.com</span>
+          </li>
+          <li>
+            Add <span className="font-mono text-foreground">GEMINI_API_KEY=…</span> to{' '}
+            <span className="font-mono">.env</span>
+          </li>
+          <li>
+            Restart with <span className="font-mono text-foreground">npm run dev</span>
+          </li>
+        </ol>
+      </div>
     );
 
   return (
-    <Card className="flex flex-col">
-      <CardHeader className="flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2">
-          <Sparkles className="size-4 text-accent" /> Ask your AI coach
-        </CardTitle>
-        {messages.length > 0 && !busy && (
-          <Button variant="ghost" size="sm" onClick={() => setMessages([])}>
-            New chat
-          </Button>
-        )}
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="scroll-thin min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4" aria-live="polite">
         {messages.length === 0 ? (
-          <div className="space-y-2">
-            <p className="text-sm text-muted">
-              Ask about <strong className="text-foreground">your own trading</strong>: what you do well, where
-              you lose money and what to improve. The coach reads your grades, habits and recent trades.
-            </p>
-            <div className="flex flex-wrap gap-1.5">
+          <div className="flex h-full flex-col justify-center gap-5">
+            <div className="text-center">
+              <span className="bg-brand mx-auto grid size-12 place-items-center rounded-2xl text-white shadow-[0_8px_30px_-8px_var(--accent)]">
+                <Sparkles className="size-6" />
+              </span>
+              <p className="mt-3 text-base font-semibold">Hi! I’m your trading coach.</p>
+              <p className="mt-1 text-sm text-muted">I read your trades and tell you what to improve.</p>
+            </div>
+            <div className="grid gap-2">
               {SUGGESTIONS.map((s) => (
                 <button
-                  key={s}
+                  key={s.label}
                   type="button"
-                  onClick={() => void ask(s)}
                   disabled={!status.data}
-                  className="rounded-full border px-3 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-foreground disabled:opacity-50"
+                  onClick={() => void ask(s.q)}
+                  className="rounded-xl border bg-panel-2/60 px-4 py-2.5 text-left text-sm transition-colors hover:border-accent/60 hover:bg-accent/10 disabled:opacity-50"
                 >
-                  {s}
+                  {s.label}
                 </button>
               ))}
             </div>
           </div>
         ) : (
-          <div className="scroll-thin max-h-[480px] space-y-3 overflow-y-auto pr-1" aria-live="polite">
-            {messages.map((m, i) => (
-              <div key={i} className={cn('flex gap-2', m.role === 'user' && 'flex-row-reverse')}>
+          messages.map((m, i) =>
+            m.role === 'user' ? (
+              <div key={i} className="flex justify-end">
+                <p className="bg-brand max-w-[85%] rounded-2xl rounded-br-md px-4 py-2 text-sm text-white">
+                  {m.text}
+                </p>
+              </div>
+            ) : (
+              <div key={i} className="flex gap-2.5">
                 <span
-                  className={cn(
-                    'grid size-7 shrink-0 place-items-center rounded-full',
-                    m.role === 'user' ? 'bg-panel-2' : 'bg-accent/15 text-accent',
-                  )}
+                  className="bg-brand mt-0.5 grid size-7 shrink-0 place-items-center rounded-full text-white"
                   aria-hidden
                 >
-                  {m.role === 'user' ? <User className="size-3.5" /> : <Bot className="size-3.5" />}
+                  <Sparkles className="size-3.5" />
                 </span>
                 <div
                   className={cn(
-                    'max-w-[85%] rounded-lg px-3 py-2 text-sm leading-relaxed',
-                    m.role === 'user' ? 'bg-accent/15' : 'bg-panel-2/70',
-                    m.error && 'border border-warn/40 text-warn',
+                    'min-w-0 flex-1 text-sm leading-relaxed text-foreground/90',
+                    m.error && 'rounded-xl border border-warn/40 bg-warn/10 px-3 py-2 text-warn',
                   )}
                 >
-                  {m.role === 'user' ? (
-                    m.text
-                  ) : m.text ? (
-                    <RichText text={m.text} />
-                  ) : (
-                    <span className="inline-flex gap-1" aria-label="Coach is thinking">
-                      <span className="size-1.5 animate-bounce rounded-full bg-muted" />
-                      <span className="size-1.5 animate-bounce rounded-full bg-muted [animation-delay:120ms]" />
-                      <span className="size-1.5 animate-bounce rounded-full bg-muted [animation-delay:240ms]" />
-                    </span>
-                  )}
+                  {m.text ? <RichText text={m.text} /> : <Thinking />}
                 </div>
               </div>
-            ))}
-            <div ref={endRef} />
-          </div>
+            ),
+          )
         )}
+        <div ref={endRef} />
+      </div>
 
-        <form
-          className="flex items-end gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void ask(input);
-          }}
-        >
+      <form
+        className="border-t p-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void ask(input);
+        }}
+      >
+        <div className="flex items-end gap-2 rounded-2xl border bg-panel-2/70 p-1.5 focus-within:border-accent/60">
           <label htmlFor="coach-question" className="sr-only">
             Ask the coach a question
           </label>
           <textarea
             id="coach-question"
+            ref={inputRef}
             rows={1}
             maxLength={2000}
             value={input}
@@ -272,30 +289,77 @@ export function CoachChat() {
                 void ask(input);
               }
             }}
-            placeholder="e.g. Why do I keep losing on BTC?"
-            className="min-h-9 flex-1 resize-none rounded-md border bg-panel-2 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+            placeholder="Ask about your trading…"
+            className="max-h-32 min-h-9 flex-1 resize-none bg-transparent px-2.5 py-2 text-sm outline-none placeholder:text-muted"
           />
           {busy ? (
-            <Button
+            <button
               type="button"
-              variant="outline"
-              onClick={() => abortRef.current?.abort()}
+              onClick={() => useChat.getState().abort?.abort()}
               aria-label="Stop"
+              className="grid size-9 place-items-center rounded-xl border hover:bg-panel-2"
             >
-              <Square />
-            </Button>
+              <Square className="size-4" />
+            </button>
           ) : (
-            <Button type="submit" disabled={!input.trim() || !status.data} aria-label="Send">
-              <Send />
-            </Button>
+            <button
+              type="submit"
+              disabled={!input.trim() || !status.data}
+              aria-label="Send"
+              className="bg-brand grid size-9 place-items-center rounded-xl text-white transition-opacity disabled:opacity-40"
+            >
+              <ArrowUp className="size-4" />
+            </button>
           )}
-        </form>
-        <p className="text-[11px] text-muted">
-          Powered by Google Gemini{status.data?.model ? ` (${status.data.model.replace('gemini:', '')})` : ''}
-          . Your trading statistics (not your name or email) are sent to Google to answer. Coaching on habits
-          only — not investment advice.
+        </div>
+        <p className="mt-2 px-1 text-center text-[11px] text-muted">
+          Gemini reads your trade stats (not your name). Habits coaching only — not investment advice.
         </p>
-      </CardContent>
-    </Card>
+      </form>
+    </div>
+  );
+}
+
+/** The slide-in panel, opened from the "AI Coach" button in the top bar. */
+export function CoachSheet() {
+  const { coachOpen, setCoachOpen } = useUi();
+  const hasMessages = useChat((s) => s.messages.length > 0);
+  const busy = useChat((s) => s.busy);
+  return (
+    <DialogPrimitive.Root open={coachOpen} onOpenChange={setCoachOpen}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] data-[state=closed]:animate-out data-[state=open]:animate-in" />
+        <DialogPrimitive.Content
+          aria-describedby={undefined}
+          className="coach-sheet fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l bg-panel shadow-2xl sm:w-[440px]"
+        >
+          <div className="flex items-center gap-3 border-b px-5 py-3.5">
+            <span className="bg-brand grid size-8 place-items-center rounded-xl text-white">
+              <Sparkles className="size-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <DialogPrimitive.Title className="text-sm font-semibold">AI Coach</DialogPrimitive.Title>
+              <p className="text-[11px] text-muted">Powered by Google Gemini</p>
+            </div>
+            {hasMessages && !busy && (
+              <button
+                type="button"
+                onClick={() => useChat.getState().set({ messages: [] })}
+                className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-muted hover:bg-panel-2 hover:text-foreground"
+              >
+                <RotateCcw className="size-3.5" /> New chat
+              </button>
+            )}
+            <DialogPrimitive.Close
+              className="grid size-8 place-items-center rounded-lg text-muted hover:bg-panel-2 hover:text-foreground"
+              aria-label="Close"
+            >
+              <X className="size-4" />
+            </DialogPrimitive.Close>
+          </div>
+          <CoachChat />
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }

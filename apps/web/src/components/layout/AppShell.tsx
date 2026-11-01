@@ -9,12 +9,14 @@ import {
   LogOut,
   Moon,
   ShieldCheck,
+  Sparkles,
   Sun,
   Trophy,
   Wallet,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge, Tip } from '@/components/ui/primitives';
+import { Tip } from '@/components/ui/primitives';
+import { CoachSheet } from '@/features/coach/CoachChat';
 import { useCompetitions } from '@/hooks/data';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -101,7 +103,7 @@ function WalletSwitcher() {
 
 export function AppShell() {
   const user = useAuth((s) => s.user);
-  const { theme, toggleTheme } = useUi();
+  const { theme, toggleTheme, setCoachOpen } = useUi();
   const navigate = useNavigate();
   const location = useLocation();
   const qc = useQueryClient();
@@ -113,54 +115,50 @@ export function AppShell() {
     navigate('/login');
   };
 
+  const navItem = ({ isActive }: { isActive: boolean }) =>
+    cn(
+      'relative flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-muted transition-colors hover:bg-panel-2/60 hover:text-foreground',
+      isActive &&
+        'bg-accent/12 text-foreground after:absolute after:inset-x-2.5 after:-bottom-[9px] after:h-0.5 after:rounded-full after:bg-brand',
+    );
+  const navLinks = [
+    ...NAV,
+    ...(user?.role === 'ADMIN' ? [{ to: '/admin', label: 'Admin', icon: ShieldCheck }] : []),
+  ];
+
   return (
     <div className="flex h-full flex-col">
-      <header className="flex h-12 shrink-0 items-center gap-3 border-b bg-panel px-3">
-        <NavLink
-          to="/trade"
-          className="flex items-center gap-2 font-semibold tracking-tight"
-          aria-label="TradeCore home"
-        >
-          <img src="/favicon.svg" alt="" className="size-6" />
-          <span>TradeCore</span>
+      <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-3 border-b bg-panel/70 px-3 backdrop-blur-xl sm:px-4">
+        <NavLink to="/trade" className="flex items-center gap-2" aria-label="TradeCore home">
+          <img src="/favicon.svg" alt="" className="size-7" />
+          <span className="text-brand hidden text-[17px] font-bold tracking-tight sm:inline">TradeCore</span>
         </NavLink>
-        <Badge variant="warn" className="hidden md:inline-flex">
-          Virtual money
-        </Badge>
-        <nav className="ml-2 hidden items-center gap-0.5 md:flex" aria-label="Main">
-          {NAV.map((n) => (
-            <NavLink
-              key={n.to}
-              to={n.to}
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-muted transition-colors hover:text-foreground',
-                  isActive && 'bg-panel-2 text-foreground',
-                )
-              }
-            >
+        <Tip content="Virtual money · For learning only · Not investment advice">
+          <span className="hidden cursor-help rounded-full border border-warn/30 bg-warn/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-warn md:inline">
+            Virtual
+          </span>
+        </Tip>
+        <nav className="ml-1 hidden items-center gap-1 md:flex" aria-label="Main">
+          {navLinks.map((n) => (
+            <NavLink key={n.to} to={n.to} className={navItem}>
               <n.icon className="size-4" />
-              {n.label}
+              <span className="hidden lg:inline">{n.label}</span>
+              <span className="sr-only lg:hidden">{n.label}</span>
             </NavLink>
           ))}
-          {user?.role === 'ADMIN' && (
-            <NavLink
-              to="/admin"
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-muted hover:text-foreground',
-                  isActive && 'bg-panel-2 text-foreground',
-                )
-              }
-            >
-              <ShieldCheck className="size-4" />
-              Admin
-            </NavLink>
-          )}
         </nav>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
           <WalletSwitcher />
           <ConnectionDot />
+          <button
+            type="button"
+            onClick={() => setCoachOpen(true)}
+            className="bg-brand flex h-9 items-center gap-1.5 rounded-xl px-3 text-sm font-medium text-white shadow-[0_6px_20px_-8px_var(--accent)] transition hover:brightness-110 active:scale-[0.98]"
+          >
+            <Sparkles className="size-4" />
+            <span className="hidden sm:inline">AI Coach</span>
+            <span className="sr-only sm:hidden">AI Coach</span>
+          </button>
           <Button
             variant="ghost"
             size="icon"
@@ -171,7 +169,14 @@ export function AppShell() {
           </Button>
           {user && (
             <>
-              <span className="hidden text-sm text-muted sm:inline">{user.displayName}</span>
+              <Tip content={user.displayName}>
+                <span
+                  className="hidden size-8 place-items-center rounded-full bg-panel-2 text-xs font-semibold sm:grid"
+                  aria-label={`Signed in as ${user.displayName}`}
+                >
+                  {user.displayName.slice(0, 1).toUpperCase()}
+                </span>
+              </Tip>
               <Button variant="ghost" size="icon" onClick={logout} aria-label="Log out">
                 <LogOut />
               </Button>
@@ -179,16 +184,16 @@ export function AppShell() {
           )}
         </div>
       </header>
-      <div className="flex shrink-0 items-center justify-center border-b bg-warn/5 px-3 py-1">
-        <Disclaimer />
-      </div>
       <main className="min-h-0 flex-1 overflow-auto">
         <ErrorBoundary resetKey={location.pathname}>
           <Outlet />
         </ErrorBoundary>
       </main>
       {/* mobile bottom navigation */}
-      <nav className="grid shrink-0 grid-cols-5 border-t bg-panel md:hidden" aria-label="Main mobile">
+      <nav
+        className="grid shrink-0 grid-cols-5 border-t bg-panel/90 backdrop-blur-xl md:hidden"
+        aria-label="Main mobile"
+      >
         {NAV.map((n) => (
           <NavLink
             key={n.to}
@@ -197,11 +202,12 @@ export function AppShell() {
               cn('flex flex-col items-center gap-0.5 py-2 text-[11px] text-muted', isActive && 'text-accent')
             }
           >
-            <n.icon className="size-4" />
+            <n.icon className="size-5" />
             {n.label}
           </NavLink>
         ))}
       </nav>
+      <CoachSheet />
     </div>
   );
 }

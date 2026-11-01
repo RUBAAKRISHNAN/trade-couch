@@ -8,18 +8,20 @@ import { cn } from '@/lib/utils';
 
 /* ── Card ───────────────────────────────────────────────── */
 export function Card({ className, ...p }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('rounded-lg border bg-panel', className)} {...p} />;
+  return (
+    <div className={cn('rounded-xl border bg-panel/90 shadow-card backdrop-blur-sm', className)} {...p} />
+  );
 }
 export function CardHeader({ className, ...p }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn('flex items-center justify-between gap-2 border-b px-3 py-2', className)} {...p} />
+    <div className={cn('flex items-center justify-between gap-2 border-b px-4 py-2.5', className)} {...p} />
   );
 }
 export function CardTitle({ className, ...p }: React.HTMLAttributes<HTMLHeadingElement>) {
-  return <h2 className={cn('text-xs font-semibold uppercase tracking-wide text-muted', className)} {...p} />;
+  return <h2 className={cn('text-[13px] font-semibold text-foreground/90', className)} {...p} />;
 }
 export function CardContent({ className, ...p }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('p-3', className)} {...p} />;
+  return <div className={cn('p-4', className)} {...p} />;
 }
 
 /* ── Input / Label ──────────────────────────────────────── */
@@ -47,7 +49,7 @@ Label.displayName = 'Label';
 
 /* ── Badge ──────────────────────────────────────────────── */
 const badgeVariants = cva(
-  'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+  'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
   {
     variants: {
       variant: {

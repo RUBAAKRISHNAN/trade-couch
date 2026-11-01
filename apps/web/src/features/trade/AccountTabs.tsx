@@ -52,16 +52,16 @@ function OrdersTable({ orders, cancellable }: { orders: Order[]; cancellable?: b
       </p>
     );
   return (
-    <table className="w-full text-xs">
+    <table className="w-full whitespace-nowrap text-xs [&_td]:px-2.5 [&_th]:px-2.5 [&_th]:py-2 [&_td]:py-1.5">
       <thead className="sticky top-0 bg-panel text-left text-[10px] uppercase text-muted">
         <tr>
-          <th className="px-3 py-1.5 font-medium">Time</th>
+          <th className="hidden 2xl:table-cell font-medium">Time</th>
           <th className="font-medium">Symbol</th>
           <th className="font-medium">Side</th>
-          <th className="font-medium">Type</th>
+          <th className="hidden 2xl:table-cell font-medium">Type</th>
           <th className="text-right font-medium">Price</th>
           <th className="text-right font-medium">Filled / Qty</th>
-          <th className="text-right font-medium">Avg fill</th>
+          <th className="hidden 2xl:table-cell text-right font-medium">Avg fill</th>
           <th className="px-3 text-right font-medium">Status</th>
           {cancellable && <th className="w-8" />}
         </tr>
@@ -69,12 +69,17 @@ function OrdersTable({ orders, cancellable }: { orders: Order[]; cancellable?: b
       <tbody>
         {orders.map((o) => (
           <tr key={o.id} className="border-t hover:bg-panel-2/60">
-            <td className="num px-3 py-1.5 text-muted">
+            <td className="num hidden 2xl:table-cell text-muted">
               {new Date(o.createdAt).toLocaleTimeString('en-IN', { hour12: false })}
             </td>
             <td>{o.symbol}</td>
-            <td className={o.side === 'BUY' ? 'text-buy' : 'text-sell'}>{o.side}</td>
-            <td className="text-muted">
+            <td className={o.side === 'BUY' ? 'text-buy' : 'text-sell'}>
+              {o.side}
+              <span className="ml-1 text-muted 2xl:hidden">
+                {o.type === 'LIMIT' ? 'limit' : o.type.replace('_', ' ').toLowerCase()}
+              </span>
+            </td>
+            <td className="hidden 2xl:table-cell text-muted">
               {o.type.replace('_', ' ').toLowerCase()} · {o.tif}
             </td>
             <td className="num text-right">
@@ -83,7 +88,7 @@ function OrdersTable({ orders, cancellable }: { orders: Order[]; cancellable?: b
             <td className="num text-right">
               {qty(o.filled, scale(o.symbol))} / {qty(o.qty, scale(o.symbol))}
             </td>
-            <td className="num text-right">{price(o.avgFillPrice)}</td>
+            <td className="num hidden 2xl:table-cell text-right">{price(o.avgFillPrice)}</td>
             <td className="px-3 text-right">
               <Badge variant={STATUS_VARIANT[o.status]} title={o.reason ?? undefined}>
                 {o.status.replace('_', ' ')}
@@ -117,7 +122,7 @@ function Positions() {
   if (!rows.length)
     return <p className="p-6 text-center text-sm text-muted">No positions. Buy something to open one.</p>;
   return (
-    <table className="w-full text-xs">
+    <table className="w-full whitespace-nowrap text-xs [&_td]:px-2.5 [&_th]:px-2.5 [&_th]:py-2 [&_td]:py-1.5">
       <thead className="text-left text-[10px] uppercase text-muted">
         <tr>
           <th className="px-3 py-1.5 font-medium">Symbol</th>

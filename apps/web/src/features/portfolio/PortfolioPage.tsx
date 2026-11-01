@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Area, AreaChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Wallet } from 'lucide-react';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle, Skeleton, Tip } from '@/components/ui/primitives';
 import { useAccountContext, useInstruments, useMyTrades, usePortfolio, withAccount } from '@/hooks/data';
 import { api } from '@/lib/api';
@@ -80,7 +82,12 @@ export default function PortfolioPage() {
   ].filter((x) => x.value > 0);
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mx-auto max-w-7xl space-y-3 p-3">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="mx-auto max-w-7xl space-y-4 p-4 sm:p-6"
+    >
+      <PageHeader icon={Wallet} title="Portfolio" subtitle="Your virtual money, positions and trades." />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard
           label="Equity"
@@ -139,18 +146,25 @@ export default function PortfolioPage() {
                     dataKey="time"
                     type="number"
                     domain={['dataMin', 'dataMax']}
-                    tickFormatter={(t) =>
-                      new Date(t * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-                    }
+                    // within one day show times, otherwise dates (all-"1 Nov" labels were useless)
+                    tickFormatter={(t) => {
+                      const pts = equity.data!;
+                      const span = pts[pts.length - 1]!.time - pts[0]!.time;
+                      const d = new Date(t * 1000);
+                      return span < 2 * 86_400
+                        ? d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false })
+                        : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+                    }}
                     tick={{ fontSize: 10, fill: 'var(--muted)' }}
                     stroke="var(--border)"
                   />
                   <YAxis
                     domain={['auto', 'auto']}
-                    tickFormatter={(v) => inr(v, { compact: true })}
+                    // compact (₹1.00 L) only for big ranges; small ranges need full rupees to tell ticks apart
+                    tickFormatter={(v) => inr(v, { noDecimals: true })}
                     tick={{ fontSize: 10, fill: 'var(--muted)' }}
                     stroke="var(--border)"
-                    width={70}
+                    width={84}
                   />
                   <Tooltip
                     contentStyle={{
