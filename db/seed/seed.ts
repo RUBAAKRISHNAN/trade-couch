@@ -7,9 +7,13 @@ import bcrypt from 'bcryptjs';
 import { INSTRUMENTS, STARTING_CASH_PAISE } from '@tradecore/shared';
 import { createPool, withTx, type PoolClient } from '@tradecore/shared/node';
 import { createAccount, grantUnits } from '../../apps/api/src/trading/accounts';
+import { seedDemo } from './demo';
 
 const DEMO_PASSWORD = 'Demo@1234';
-const ENABLED = new Set((process.env.SEED_SYMBOLS ?? 'BTC-INR').split(',').map((s) => s.trim()));
+// All instruments by default; SEED_SYMBOLS=BTC-INR,ETH-INR limits it. SEED_DEMO=0 skips the demo history.
+const ENABLED = new Set(
+  (process.env.SEED_SYMBOLS ?? INSTRUMENTS.map((i) => i.symbol).join(',')).split(',').map((s) => s.trim()),
+);
 
 /** Per-instrument bot settings. Sizes are in units (see qtyScale). */
 const BOT_CFG: Record<
@@ -55,6 +59,8 @@ async function mainAccount(
   return { id: await createAccount(c, userId, null, cash), created: true };
 }
 
+const hash = await bcrypt.hash(DEMO_PASSWORD, 10);
+
 await withTx(pool, async (c) => {
   // instruments
   for (const i of INSTRUMENTS) {
@@ -81,7 +87,6 @@ await withTx(pool, async (c) => {
   }
 
   // humans
-  const hash = await bcrypt.hash(DEMO_PASSWORD, 10);
   const humans: [string, string, 'USER' | 'ADMIN'][] = [
     ['admin@tradecore.dev', 'Admin', 'ADMIN'],
     ['asha@tradecore.dev', 'Asha', 'USER'],
@@ -139,6 +144,8 @@ await withTx(pool, async (c) => {
     );
   }
 });
+
+if (process.env.SEED_DEMO !== '0') console.log('demo data:', await seedDemo(pool, hash));
 
 const counts = (
   await pool.query(`SELECT (SELECT count(*) FROM users)::int AS users, (SELECT count(*) FROM accounts)::int AS accounts,

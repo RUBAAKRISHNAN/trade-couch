@@ -14,6 +14,7 @@
     "db:migrate": "tsx --env-file-if-exists=.env scripts/db-migrate.ts",
     "db:migrate:test": "cross-env DB_NAME=tradecore_test tsx --env-file-if-exists=.env scripts/db-migrate.ts",
     "db:seed": "tsx --env-file-if-exists=.env db/seed/seed.ts",
+    "demo:traders": "tsx --env-file-if-exists=.env scripts/demo-traders.ts",
     "db:setup": "npm run db:create && npm run db:migrate && npm run db:migrate:test && npm run prisma:generate",
     "prisma:generate": "prisma generate --schema db/prisma/schema.prisma",
     "dev": "concurrently -k -n engine,api,worker,web -c magenta,cyan,yellow,green \"npm:dev -w @tradecore/engine\" \"npm:dev -w @tradecore/api\" \"npm:dev -w @tradecore/worker\" \"npm:dev -w @tradecore/web\"",
