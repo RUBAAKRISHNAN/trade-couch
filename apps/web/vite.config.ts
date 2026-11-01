@@ -11,6 +11,8 @@ export default defineConfig({
   server: {
     port: 5200,
     strictPort: true,
+    // WEB_HOST=0.0.0.0 makes the dev server reachable from outside a container (docker compose --profile app)
+    host: process.env.WEB_HOST ?? 'localhost',
     // same-origin in dev: the browser talks to :5200 only, so the httpOnly refresh cookie just works
     proxy: {
       '/api': { target: api, changeOrigin: true },

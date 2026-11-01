@@ -1,0 +1,51 @@
+# Local infrastructure for people who have Docker (the project also runs with a native Postgres + Memurai).
+#
+#   docker compose up -d                 # Postgres 17 + Valkey (Redis-compatible) only
+#   docker compose --profile app up      # …plus the whole app in a Node container
+#
+# With the first form, use this in .env:
+#   PG_USER=postgres  PG_PASSWORD=postgres  PG_HOST=localhost  PG_PORT=5432  REDIS_URL=redis://127.0.0.1:6379
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_PASSWORD: postgres
+    ports: ['5432:5432']
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: valkey/valkey:8
+    ports: ['6379:6379']
+    healthcheck:
+      test: ['CMD', 'valkey-cli', 'ping']
+      interval: 5s
+      retries: 10
+
+  app:
+    profiles: [app]
+    image: node:22-bookworm
+    working_dir: /app
+    command: sh -c "npm ci && npm run db:setup && npm run db:seed && npm run dev"
+    environment:
+      PG_USER: postgres
+      PG_PASSWORD: postgres
+      PG_HOST: postgres
+      PG_PORT: '5432'
+      REDIS_URL: redis://redis:6379
+      WEB_ORIGIN: http://localhost:5200
+      WEB_HOST: 0.0.0.0
+    ports: ['5200:5200', '4300:4300']
+    volumes:
+      - .:/app
+      - app_node_modules:/app/node_modules
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  app_node_modules:

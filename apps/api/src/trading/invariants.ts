@@ -76,7 +76,10 @@ export const INVARIANTS: { name: string; explain: string; sql: string }[] = [
           WHERE NOT EXISTS (SELECT 1 FROM order_events e WHERE e.symbol = t.symbol AND e.seq = t.seq AND e.event_type = 'TRADE')
           UNION ALL
           SELECT 'filled-mismatch', o.symbol, o.id, o.filled_units FROM orders o
-          WHERE o.filled_units <> (SELECT COALESCE(SUM(qty_units), 0) FROM trades t WHERE t.buy_order_id = o.id OR t.sell_order_id = o.id)`,
+          LEFT JOIN (SELECT order_id, SUM(qty) AS q FROM (
+                       SELECT buy_order_id AS order_id, qty_units AS qty FROM trades
+                       UNION ALL SELECT sell_order_id, qty_units FROM trades) x GROUP BY order_id) f ON f.order_id = o.id
+          WHERE o.filled_units <> COALESCE(f.q, 0)`,
   },
   {
     name: 'event-log-gap-free',
