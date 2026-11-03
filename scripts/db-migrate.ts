@@ -9,8 +9,9 @@ import pg from 'pg';
 import { pgConfig } from '@tradecore/shared/node';
 
 const dir = path.resolve(import.meta.dirname, '../db/migrations');
-const database = process.env.DB_NAME ?? 'tradecore';
-const client = new pg.Client(pgConfig(database));
+const database =
+  process.env.DATABASE_URL && !process.env.DB_NAME ? 'DATABASE_URL' : (process.env.DB_NAME ?? 'tradecore');
+const client = new pg.Client(pgConfig(process.env.DB_NAME));
 await client.connect();
 await client.query(`CREATE TABLE IF NOT EXISTS schema_migrations (
   name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`);

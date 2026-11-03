@@ -19,6 +19,7 @@
     "prisma:generate": "prisma generate --schema db/prisma/schema.prisma",
     "dev": "concurrently -k -n engine,api,worker,web -c magenta,cyan,yellow,green \"npm:dev -w @tradecore/engine\" \"npm:dev -w @tradecore/api\" \"npm:dev -w @tradecore/worker\" \"npm:dev -w @tradecore/web\"",
     "start:prod": "concurrently -k -n engine,api,worker \"npm:start -w @tradecore/engine\" \"npm:start -w @tradecore/api\" \"npm:start -w @tradecore/worker\"",
+    "start:render": "npm run db:migrate && npm run db:seed && tsx scripts/start-all.ts",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

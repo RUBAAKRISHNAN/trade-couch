@@ -1,0 +1,53 @@
+# Render Blueprint: New → Blueprint → pick this repo. Creates the API (engine + API + worker in one process),
+# a Postgres 17 database and a Key Value (Redis-compatible) store, all in Singapore (closest to India).
+# Free plans: the web service sleeps after ~15 min idle (first request then takes ~1 min), and a free Postgres
+# database expires after 30 days unless upgraded — see docs/DEPLOY.md.
+services:
+  - type: web
+    name: trade-couch-api
+    runtime: node
+    plan: free
+    region: singapore
+    # devDependencies are needed (tsx runs the TypeScript, prisma generates the client)
+    buildCommand: npm ci --include=dev && npm run prisma:generate
+    # migrations + idempotent demo seed, then engine, API and worker in one process
+    startCommand: npm run start:render
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 22.17.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: trade-couch-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: trade-couch-redis
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: WEB_ORIGIN
+        sync: false # your Vercel URL, e.g. https://trade-couch.vercel.app
+      - key: GEMINI_API_KEY
+        sync: false # optional: enables the AI coach
+      - key: USD_INR
+        value: '88'
+      - key: LOG_LEVEL
+        value: warn
+
+  - type: keyvalue
+    name: trade-couch-redis
+    plan: free
+    region: singapore
+    maxmemoryPolicy: noeviction # BullMQ queues must never be evicted
+    ipAllowList: [] # only reachable from inside Render
+
+databases:
+  - name: trade-couch-db
+    plan: free
+    region: singapore
+    postgresMajorVersion: '17'
+    databaseName: tradecore

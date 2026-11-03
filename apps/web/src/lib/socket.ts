@@ -15,7 +15,13 @@ const subs = new Map<string, number>(); // "book:BTC-INR" → ref count
  */
 export function connectSocket(qc: QueryClient): Socket {
   if (socket) return socket;
-  const url = (import.meta.env.VITE_API_URL as string | undefined) ?? undefined;
+  // In production the web app is on Vercel and REST goes through its /api proxy (same-site cookie), but Vercel
+  // can't proxy WebSockets — so the socket connects straight to the API host. It authenticates with the access
+  // token (not the cookie), so cross-site is fine.
+  const url =
+    (import.meta.env.VITE_SOCKET_URL as string | undefined) ||
+    (import.meta.env.VITE_API_URL as string | undefined) ||
+    undefined;
   const s = io(url ?? '/', {
     path: '/socket.io',
     transports: ['websocket'],

@@ -6,8 +6,15 @@ function req(name: string): string {
   return v;
 }
 
-/** Postgres connection settings from PG_* env vars. The password is never logged. */
-export function pgConfig(database = process.env.DB_NAME ?? 'tradecore') {
+/**
+ * Postgres connection settings: DATABASE_URL when the host provides one (Render, Neon…), otherwise PG_* env vars.
+ * The password is never logged.
+ */
+export function pgConfig(database?: string): import('pg').ClientConfig {
+  // DATABASE_URL only applies when no specific database was asked for — tests always ask for tradecore_test,
+  // so they can never be pointed at a hosted database by accident
+  if (process.env.DATABASE_URL && !database) return { connectionString: process.env.DATABASE_URL };
+  database ??= process.env.DB_NAME ?? 'tradecore';
   return {
     user: req('PG_USER'),
     password: req('PG_PASSWORD'),
@@ -22,7 +29,8 @@ export const config = {
     return process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
   },
   get apiPort() {
-    return Number(process.env.API_PORT ?? 4300);
+    // PORT is what hosting platforms (Render, Heroku…) assign
+    return Number(process.env.API_PORT ?? process.env.PORT ?? 4300);
   },
   get webOrigin() {
     return (process.env.WEB_ORIGIN ?? 'http://localhost:5200').split(',');

@@ -10,3 +10,5 @@ playwright-report/
 test-results/
 .DS_Store
 *.tsbuildinfo
+# public build setting (no secrets): the API host for live updates
+!apps/web/.env.production
